@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h2>Заявки на размещение</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Дата создания</th>
+        <th>Рекламодатель</th>
+        <th>Название события</th>
+        <th>Статус</th>
+        <th>Модель</th>
+        <th>Бюджет (₽)</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in items %}
+      <tr>
+        <td>{{ p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else '—' }}</td>
+        <td>{{ p.advertiser_id or '—' }}</td>
+        <td>{{ p.event_title or '—' }}</td>
+        <td>
+          {% if p.status == 'pending' %}
+            <span style="color: orange;">⏳ Ожидает</span>
+          {% elif p.status == 'approved' %}
+            <span style="color: blue;">✓ Одобрена</span>
+          {% elif p.status == 'paid' %}
+            <span style="color: green;">💰 Оплачена</span>
+          {% elif p.status == 'active' %}
+            <span style="color: green;">🔥 Активна</span>
+          {% elif p.status == 'completed' %}
+            <span style="color: gray;">✓ Завершена</span>
+          {% elif p.status == 'rejected' %}
+            <span style="color: red;">✗ Отклонена</span>
+          {% else %}
+            {{ p.status }}
+          {% endif %}
+        </td>
+        <td>
+          {% if p.pricing_model == 'fixed' %}Фикс
+          {% elif p.pricing_model == 'cpc' %}CPC
+          {% elif p.pricing_model == 'cpm' %}CPM
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ (p.budget / 100)|round(2) if p.budget else '—' }}</td>
+        <td>
+          <a class="btn" href="/placements/{{ p.id }}">Открыть</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

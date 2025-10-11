@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width:900px;">
+  <h2>{{ 'Новое место' if not item else 'Редактирование места' }}</h2>
+  <form method="post" action="/places/save" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    {% if item %}<input type="hidden" name="id" value="{{ item.id }}" />{% endif %}
+    <div class="row">
+      <div class="col"><label>Название</label><input name="name" value="{{ item.name if item else '' }}" /></div>
+      <div class="col"><label>Категория</label><input name="category" value="{{ item.category if item else 'other' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Адрес</label><input name="address" value="{{ item.address if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Широта</label><input name="lat" type="number" step="0.000001" value="{{ item.lat if item else '' }}" /></div>
+      <div class="col"><label>Долгота</label><input name="lon" type="number" step="0.000001" value="{{ item.lon if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Телефон</label><input name="phone" value="{{ item.phone if item else '' }}" /></div>
+      <div class="col"><label>Часы (JSON)</label><textarea name="hours" rows="4">{{ item.hours|tojson if item and item.hours else '' }}</textarea></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Рейтинг</label><input name="rating" type="number" step="0.1" value="{{ item.rating if item and item.rating is not none else '' }}" /></div>
+      <div class="col"><label>Уровень цен</label><input name="price_level" type="number" value="{{ item.price_level if item and item.price_level is not none else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Источник</label><input name="source" value="{{ item.source if item else 'editor' }}" /></div>
+      <div class="col"><label>External ID</label><input name="external_id" value="{{ item.external_id if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Фото (загрузка)</label><input type="file" name="image_file" accept="image/*" /></div>
+      <div class="col"><label>Фото (URL)</label><input name="image_url_field" value="{{ item.image_url if item and item.image_url else '' }}" /></div>
+    </div>
+    <div class="mt1 right"><button class="btn" type="submit">Сохранить</button></div>
+  </form>
+
+  <h3 class="mt1">Предпросмотр</h3>
+  <div class="card" id="preview" style="background:#0b1226;">
+    {% set img = item.image_url if item and item.image_url else '' %}
+    <div id="prev_img">{% if img %}<img src="{{ img }}" style="max-width:100%;border-radius:8px;" />{% endif %}</div>
+    <pre id="prev_text" style="white-space:pre-wrap;">{{ (item.name ~ ' (' ~ item.category ~ ')\n' ~ item.address)|trim }}</pre>
+  </div>
+  <script>
+    const f = document.querySelector('form');
+    const prevText = document.getElementById('prev_text');
+    const prevImg = document.getElementById('prev_img');
+    function updatePreview(){
+      const name = f.name.value || '';
+      const category = f.category.value || '';
+      const address = f.address.value || '';
+      prevText.textContent = `${name} (${category})\n${address}`.trim();
+      const url = f.image_url_field.value || '';
+      const file = f.image_file.files && f.image_file.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = e => { prevImg.innerHTML = `<img src="${e.target.result}" style="max-width:100%;border-radius:8px;" />`; };
+        reader.readAsDataURL(file);
+      } else if (url) {
+        prevImg.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px;" />`;
+      } else {
+        prevImg.innerHTML = '';
+      }
+    }
+    f.addEventListener('input', updatePreview);
+    f.addEventListener('change', updatePreview);
+  </script>
+</div>
+{% endblock %}

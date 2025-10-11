@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h2>Заявка на размещение</h2>
+
+  <div style="margin-bottom: 1rem;">
+    <strong>Статус:</strong>
+    {% if item.status == 'pending' %}
+      <span style="color: orange;">⏳ Ожидает модерации</span>
+    {% elif item.status == 'approved' %}
+      <span style="color: blue;">✓ Одобрена (ожидает оплаты)</span>
+    {% elif item.status == 'paid' %}
+      <span style="color: green;">💰 Оплачена (готова к публикации)</span>
+    {% elif item.status == 'active' %}
+      <span style="color: green;">🔥 Активна</span>
+    {% elif item.status == 'completed' %}
+      <span style="color: gray;">✓ Завершена</span>
+    {% elif item.status == 'rejected' %}
+      <span style="color: red;">✗ Отклонена</span>
+    {% endif %}
+  </div>
+
+  <h3>Информация о рекламодателе</h3>
+  {% if advertiser %}
+  <p><strong>Название:</strong> {{ advertiser.name }}</p>
+  <p><strong>Контактное лицо:</strong> {{ advertiser.contact_person or '—' }}</p>
+  <p><strong>Email:</strong> {{ advertiser.email }}</p>
+  <p><strong>Телефон:</strong> {{ advertiser.phone or '—' }}</p>
+  {% else %}
+  <p>Рекламодатель не указан</p>
+  {% endif %}
+
+  <h3>Детали размещения</h3>
+  <p><strong>Название события:</strong> {{ item.event_title or '—' }}</p>
+  <p><strong>Дата события:</strong> {{ item.event_date or '—' }}</p>
+  <p><strong>Время:</strong> {{ item.event_time or '—' }}</p>
+  <p><strong>Категория:</strong> {{ item.event_category or '—' }}</p>
+  <p><strong>Описание:</strong> {{ item.event_description or '—' }}</p>
+  <p><strong>Место:</strong> {{ item.venue_name or '—' }}</p>
+  <p><strong>Адрес:</strong> {{ item.venue_address or '—' }}</p>
+  <p><strong>Город:</strong> {{ item.city or '—' }}</p>
+
+  <h3>Финансовая информация</h3>
+  <p><strong>Модель оплаты:</strong>
+    {% if item.pricing_model == 'fixed' %}Фиксированная цена
+    {% elif item.pricing_model == 'cpc' %}Cost Per Click (CPC)
+    {% elif item.pricing_model == 'cpm' %}Cost Per Mille (CPM)
+    {% else %}—{% endif %}
+  </p>
+  <p><strong>Бюджет:</strong> {{ (item.budget / 100)|round(2) if item.budget else '—' }} ₽</p>
+  <p><strong>Позиция:</strong> {{ item.position or 'standard' }}</p>
+
+  {% if item.event_id %}
+  <p><strong>ID события:</strong> <a href="/events/{{ item.event_id }}">{{ item.event_id }}</a></p>
+  {% endif %}
+
+  <div style="margin-top: 2rem;">
+    {% if item.status == 'pending' %}
+      <form method="post" action="/placements/{{ item.id }}/approve" style="display:inline;">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <button class="btn" type="submit">✓ Одобрить</button>
+      </form>
+      <form method="post" action="/placements/{{ item.id }}/reject" style="display:inline;">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <button class="btn" type="submit" onclick="return confirm('Отклонить заявку?')">✗ Отклонить</button>
+      </form>
+    {% elif item.status == 'approved' %}
+      <form method="post" action="/placements/{{ item.id }}/mark_paid" style="display:inline;">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <button class="btn" type="submit">💰 Отметить как оплачено</button>
+      </form>
+    {% elif item.status == 'paid' %}
+      <form method="post" action="/placements/{{ item.id }}/activate" style="display:inline;">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <button class="btn" type="submit">🔥 Активировать размещение</button>
+      </form>
+    {% endif %}
+
+    <a class="btn" href="/placements">← Назад к списку</a>
+  </div>
+</div>
+{% endblock %}

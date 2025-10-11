@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width:960px;">
+  <h2>Настройки</h2>
+  <form method="post" action="/settings">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <div class="row">
+      <div class="col"><label>Название приложения</label><input name="app_name" value="{{ values.app_name }}" /></div>
+    </div>
+
+    <h3 class="mt1">Ранжирование (веса, 0..1)</h3>
+    <div class="row">
+      <div class="col"><label>W_TIME</label><input name="w_time" type="number" step="0.05" min="0" max="1" value="{{ values.w_time }}" /></div>
+      <div class="col"><label>W_GEO</label><input name="w_geo" type="number" step="0.05" min="0" max="1" value="{{ values.w_geo }}" /></div>
+      <div class="col"><label>W_INTEREST</label><input name="w_interest" type="number" step="0.05" min="0" max="1" value="{{ values.w_interest }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>W_SOURCE</label><input name="w_source" type="number" step="0.05" min="0" max="1" value="{{ values.w_source }}" /></div>
+      <div class="col"><label>W_POP</label><input name="w_pop" type="number" step="0.05" min="0" max="1" value="{{ values.w_pop }}" /></div>
+      <div class="col"><label>W_OPEN</label><input name="w_open" type="number" step="0.05" min="0" max="1" value="{{ values.w_open }}" /></div>
+    </div>
+
+    <h3 class="mt1">Telegram</h3>
+    <div class="row">
+      <div class="col"><label>Каналы (CSV)</label><input name="tg_channels" value="{{ values.tg_channels }}" /></div>
+    </div>
+
+    <h3 class="mt1">LLM (AI Mediator)</h3>
+    <div class="row">
+      <div class="col"><label>База URL</label><input name="ai_mediator_base_url" value="{{ values.ai_mediator_base_url }}" /></div>
+      <div class="col"><label>API Key</label><input name="ai_mediator_api_key" type="password" placeholder="***" value="" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Auth Header</label><input name="llm_auth_header" value="{{ values.llm_auth_header }}" /></div>
+      <div class="col"><label>Auth Scheme</label><input name="llm_auth_scheme" value="{{ values.llm_auth_scheme }}" /></div>
+    </div>
+
+    <h3 class="mt1">Провайдеры мест</h3>
+    <div class="row">
+      <div class="col"><label>2GIS API Key</label><input name="two_gis_api_key" type="password" placeholder="***" value="{{ values.two_gis_api_key }}" /></div>
+      <div class="col"><label>Yandex Maps API Key</label><input name="yandex_maps_api_key" type="password" placeholder="***" value="{{ values.yandex_maps_api_key }}" /></div>
+    </div>
+
+    <div class="mt1 right"><button class="btn" type="submit">Сохранить</button></div>
+  </form>
+
+  <h3 class="mt1">Планировщик и запуск сейчас</h3>
+  <div class="card" style="margin-top:1rem;">
+    <form method="post" action="/jobs/run">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <div class="row">
+        <div class="col">
+          <label>Источник</label>
+          <select name="kind">
+            <option value="yandex">Yandex Afisha</option>
+            <option value="goroda">Afisha "Города"</option>
+            <option value="kassa24">Kassa24</option>
+            <option value="tg">Telegram Channels</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Город (для Yandex/Goroda)</label>
+          <input name="city" placeholder="Севастополь" />
+        </div>
+        <div class="col right" style="align-self:flex-end;">
+          <button class="btn" type="submit">Запустить сейчас</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <h3 class="mt1">Засевка демо‑данных</h3>
+  <form method="post" action="/seed/demo">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <p class="muted">Создаст по 5 событий на каждую категорию для Севастополя и Симферополя.</p>
+    <div class="right"><button class="btn" type="submit">Создать демо‑события</button></div>
+  </form>
+
+  <h3 class="mt1">Включение источников и интервалы</h3>
+  <form method="post" action="/settings">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <div class="row">
+      <div class="col"><label><input type="checkbox" name="ingest_yandex_enabled" {% if values.ingest_yandex_enabled %}checked{% endif %}/> Yandex Afisha</label></div>
+      <div class="col"><label>Часы</label><input name="ingest_yandex_hours" type="number" min="1" value="{{ values.ingest_yandex_hours or 4 }}" /></div>
+      <div class="col"><label>Города (CSV)</label><input name="ingest_yandex_cities" value="{{ values.ingest_yandex_cities or 'Севастополь,Симферополь' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label><input type="checkbox" name="ingest_goroda_enabled" {% if values.ingest_goroda_enabled %}checked{% endif %}/> Afisha "Города"</label></div>
+      <div class="col"><label>Часы</label><input name="ingest_goroda_hours" type="number" min="1" value="{{ values.ingest_goroda_hours or 4 }}" /></div>
+      <div class="col"><label>Города (CSV)</label><input name="ingest_goroda_cities" value="{{ values.ingest_goroda_cities or 'Севастополь,Симферополь' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label><input type="checkbox" name="ingest_kassa_enabled" {% if values.ingest_kassa_enabled %}checked{% endif %}/> Kassa24</label></div>
+      <div class="col"><label>Часы</label><input name="ingest_kassa_hours" type="number" min="1" value="{{ values.ingest_kassa_hours or 4 }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label><input type="checkbox" name="ingest_tg_enabled" {% if values.ingest_tg_enabled %}checked{% endif %}/> Telegram</label></div>
+      <div class="col"><label>Минуты</label><input name="ingest_tg_minutes" type="number" min="5" value="{{ values.ingest_tg_minutes or 45 }}" /></div>
+    </div>
+    <div class="mt1 right"><button class="btn" type="submit">Сохранить расписание</button></div>
+  </form>
+</div>
+{% endblock %}

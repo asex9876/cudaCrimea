@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+/* 7-column grid layout */
+.ugc-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* Event card with color coding */
+.ugc-card {
+  border-radius: 12px;
+  padding: 0;
+  background: #0f1419;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.ugc-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+/* Color borders for paid/free/parser */
+.ugc-card.free { border: 3px solid #808080; }  /* Gray for free */
+.ugc-card.paid { border: 3px solid #FF0000; }  /* Red for paid */
+.ugc-card.parser { border: 3px solid #FFD700; }  /* Yellow/Gold for parsed events */
+
+/* Photo carousel */
+.photo-carousel {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  background: #f0f0f0;
+  overflow: hidden;
+}
+.carousel-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+  background: #000;
+}
+.carousel-image.active {
+  display: block;
+}
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.5);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 18px;
+  border-radius: 4px;
+  z-index: 10;
+  transition: background 0.2s;
+}
+.carousel-arrow:hover {
+  background: rgba(0,0,0,0.7);
+}
+.carousel-arrow.prev { left: 8px; }
+.carousel-arrow.next { right: 8px; }
+
+/* Photo selector checkbox */
+.photo-selector {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  z-index: 11;
+  accent-color: #FF0000;
+}
+
+/* Photo counter */
+.photo-counter {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  z-index: 10;
+}
+
+/* Card content */
+.card-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Telegram-like caption */
+.tg-caption {
+  background: #1c2733;
+  border: 1px solid #2b3a4a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  font-size: 13px;
+  color: #e5e9f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial;
+  margin-bottom: 8px;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+.tg-caption a { color: #1d6fdc; text-decoration: none; }
+.tg-caption a:hover { text-decoration: underline; }
+
+/* Telegram buttons */
+.tg-kb { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.tg-row { display: flex; gap: 4px; }
+.tg-btn {
+  display: inline-block;
+  padding: 6px 10px;
+  border: 1px solid #2b3a4a;
+  border-radius: 8px;
+  background: #1c2733;
+  color: #8ab4f8;
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1;
+  flex: 1;
+  text-align: center;
+}
+.tg-btn:hover { background: #2b3a4a; }
+
+/* Action buttons */
+.ugc-actions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2b3a4a;
+  display: flex;
+  gap: 8px;
+}
+.btn-approve {
+  flex: 1;
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.btn-approve:hover { background: #218838; }
+
+.btn-reject {
+  flex: 1;
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.btn-reject:hover { background: #c82333; }
+
+/* User info */
+.user-info {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+/* Debug section */
+.ugc-debug { font-size: 11px; margin-top: 8px; }
+.ugc-raw {
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 10px;
+  color: #444;
+  background: #fafafa;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid #eee;
+  margin-top: 4px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.muted { color: #999; }
+</style>
+
+<div class="card">
+  {% if request.query_params.get('success') == 'published' %}
+  <div style="padding:12px;background:#d4edda;border:1px solid #c3e6cb;color:#155724;border-radius:8px;margin-bottom:16px;">
+    ✅ <strong>Событие успешно опубликовано!</strong> Оно появится в ленте пользователей.
+  </div>
+  {% endif %}
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h2 style="margin:0;">UGC Модерация</h2>
+    <div style="display:flex;gap:8px;">
+      <a href="ugc?queue=all" class="btn" style="background:{{ '#0066cc' if current_queue == 'all' else '#6c757d' }};">Все</a>
+      <a href="ugc?queue=free" class="btn" style="background:{{ '#808080' if current_queue == 'free' else '#6c757d' }};">Бесплатные</a>
+      <a href="ugc?queue=paid" class="btn" style="background:{{ '#FF0000' if current_queue == 'paid' else '#6c757d' }};">Платные</a>
+      <a href="ugc?queue=parser" class="btn" style="background:{{ '#FFD700' if current_queue == 'parser' else '#6c757d' }};">Парс</a>
+    </div>
+  </div>
+  {% if not items %}
+    <p class="muted">Очередь пуста.</p>
+  {% else %}
+    <div class="ugc-grid">
+      {% for it in items %}
+      {% set p = it.preview %}
+      {% set is_paid = it.wants_paid_promotion %}
+      {% set is_parser = it.is_parser %}
+      <div class="ugc-card {{ 'parser' if is_parser else ('paid' if is_paid else 'free') }}">
+        {# Photo carousel #}
+        {% if it.images and it.images|length %}
+        <div class="photo-carousel" id="carousel-{{ loop.index }}">
+          {% for img in it.images %}
+          {% if img.startswith('http') %}
+            {% set img_url = img %}
+          {% elif img.startswith('/static/') %}
+            {% set img_url = '/admin' + img %}
+          {% else %}
+            {% set img_url = img %}
+          {% endif %}
+          <img src="{{ img_url }}" alt="photo" class="carousel-image {{ 'active' if loop.first else '' }}" />
+          {% endfor %}
+
+          {# Arrows #}
+          {% if it.images|length > 1 %}
+          <button class="carousel-arrow prev" onclick="changePhoto('carousel-{{ loop.index }}', -1)">‹</button>
+          <button class="carousel-arrow next" onclick="changePhoto('carousel-{{ loop.index }}', 1)">›</button>
+          {% endif %}
+
+          {# Photo selector checkbox #}
+          <input type="checkbox" class="photo-selector" id="photo-select-{{ loop.index }}" title="Отметить фото для удаления">
+
+          {# Photo counter #}
+          {% if it.images|length > 1 %}
+          <div class="photo-counter">
+            <span id="photo-count-{{ loop.index }}">1</span>/{{ it.images|length }}
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        {# No photos placeholder #}
+        <div class="photo-carousel" style="display:flex;align-items:center;justify-content:center;background:#e0e0e0;color:#999;">
+          Нет фото
+        </div>
+        {% endif %}
+
+        {# Card content #}
+        <div class="card-content">
+          {# User/Parser info #}
+          {% if is_parser %}
+          <div class="user-info" style="background:#FFD700;color:#000;padding:4px 8px;border-radius:4px;font-weight:600;">
+            🤖 Парсер: {{ it.parser_name or 'Unknown' }}
+          </div>
+          {% elif it.user_id %}
+          <div class="user-info">👤 User ID: {{ it.user_id }}</div>
+          {% endif %}
+
+          {# Telegram-like caption #}
+          <div class="tg-caption">
+            {{ it.caption | replace('\n', '<br/>') | safe }}
+          </div>
+
+          {# Telegram buttons #}
+          {% if it.tg_buttons_rows and it.tg_buttons_rows|length %}
+            <div class="tg-kb">
+              {% for row in it.tg_buttons_rows %}
+                <div class="tg-row">
+                  {% for b in row %}
+                    <a class="tg-btn" href="{{ b.url }}" target="_blank">{{ b.text }}</a>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+          {% elif it.tg_buttons and it.tg_buttons|length %}
+            <div class="tg-kb">
+              <div class="tg-row">
+              {% for b in it.tg_buttons %}
+                <a class="tg-btn" href="{{ b.url }}" target="_blank">{{ b.text }}</a>
+              {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          {# Debug section (collapsed) #}
+          <details class="ugc-debug">
+            <summary style="cursor:pointer;color:#999;">🔍 Debug</summary>
+            <div class="ugc-raw">{{ it.raw_text }}</div>
+            <div style="font-size:10px;margin-top:4px;">
+              <b>TS:</b> {{ it.ts or '-' }} |
+              <b>Source:</b> {{ it.source_url or '-' }}
+            </div>
+          </details>
+
+          {# Action buttons #}
+          <div class="ugc-actions">
+            <form method="post" action="ugc/approve" style="flex:1;">
+              <input type="hidden" name="csrf" value="{{ csrf }}" />
+              <input type="hidden" name="raw" value='{{ it.raw | e }}' />
+              <button class="btn-approve" type="submit">✅ Подтвердить</button>
+            </form>
+            <form method="post" action="ugc/reject" style="flex:1;">
+              <input type="hidden" name="csrf" value="{{ csrf }}" />
+              <input type="hidden" name="raw" value='{{ it.raw | e }}' />
+              <button class="btn-reject" type="submit">❌ Отклонить</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<script>
+// Photo carousel navigation
+function changePhoto(carouselId, direction) {
+  const carousel = document.getElementById(carouselId);
+  const images = carousel.querySelectorAll('.carousel-image');
+  const counter = carousel.querySelector('[id^="photo-count-"]');
+
+  let currentIndex = 0;
+  images.forEach((img, idx) => {
+    if (img.classList.contains('active')) {
+      currentIndex = idx;
+      img.classList.remove('active');
+    }
+  });
+
+  let newIndex = currentIndex + direction;
+  if (newIndex < 0) newIndex = images.length - 1;
+  if (newIndex >= images.length) newIndex = 0;
+
+  images[newIndex].classList.add('active');
+  if (counter) {
+    counter.textContent = newIndex + 1;
+  }
+}
+
+// Keyboard navigation for carousel
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') {
+    const activeCarousel = document.querySelector('.photo-carousel:hover');
+    if (activeCarousel) changePhoto(activeCarousel.id, -1);
+  } else if (e.key === 'ArrowRight') {
+    const activeCarousel = document.querySelector('.photo-carousel:hover');
+    if (activeCarousel) changePhoto(activeCarousel.id, 1);
+  }
+});
+</script>
+{% endblock %}

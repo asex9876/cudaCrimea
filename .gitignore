@@ -1,0 +1,81 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Poetry
+.venv/
+poetry.lock
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+
+# Byte-compiled / compiled / cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Playwright
+/playwright-report/
+/test-results/
+
+# Alembic
+app/db/alembic/versions/__pycache__/
+
+logs/
+*.log
+
+# Uploaded files (user photos)
+app/admin/static/uploads/
+app/uploads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+
+# Database dumps
+*.sql
+*.dump
+backups/
+
+# Docker volumes data
+pgdata/
+redisdata/
+
+# SSL certificates (не коммитим приватные ключи!)
+infra/ssl/
+*.pem
+*.key
+*.crt
+
+# Session files
+*.session
+*.session-journal
+
+# nginx htpasswd (содержит хешированные пароли)
+infra/nginx.htpasswd
+
+# Runtime config with secrets
+app/core/data/settings.json
+
+# Temporary files
+nul
+*.tmp
+*.temp

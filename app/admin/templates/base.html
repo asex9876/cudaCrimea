@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/admin/" />
+    <title>{{ title or 'Admin' }}</title>
+    <style>
+      :root { --bg:#0b1020; --card:#121a33; --muted:#9aa4b2; --fg:#e5e9f0; --accent:#6ea8fe; }
+      body { background:var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; }
+      a{ color:var(--accent); text-decoration:none; }
+      header { padding:1rem 1.25rem; background:#0f162e; border-bottom:1px solid #1b254b; }
+      nav a { margin-right:1rem; }
+      .wrap { padding:1rem; }
+      .card { background:var(--card); border:1px solid #1b254b; border-radius:12px; padding:1rem; }
+      table { width:100%; border-collapse:collapse; }
+      th, td { padding:.5rem .75rem; border-bottom:1px solid #1b254b; vertical-align:top; }
+      input, select, textarea { background:#0b1226; color:var(--fg); border:1px solid #1b254b; border-radius:8px; padding:.5rem .6rem; width:100%; }
+      .btn { background:#1b254b; border:1px solid #2a386a; color:var(--fg); padding:.4rem .8rem; border-radius:8px; cursor:pointer; }
+      .row { display:flex; gap:1rem; flex-wrap:wrap; }
+      .col { flex:1 1 320px; }
+      .muted { color:var(--muted); font-size:.9rem; }
+      .mt1{ margin-top:1rem; }
+      .right { text-align:right; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="ugc">ОЧЕРЕДЬ</a>
+        <a href="placements">Заявки</a>
+        <a href="advertisers">Рекламодатели</a>
+        <a href="events">События</a>
+        <a href="places">Места</a>
+        <a href="pins">Пины</a>
+        <a href="parsers">Парсеры</a>
+        <a href="telegram-accounts">Telegram</a>
+        <a href="stats">Статистика</a>
+        <a href="settings">Настройки</a>
+        <a href="logout" style="float:right">Выход</a>
+      </nav>
+    </header>
+    <div class="wrap">
+      {% block content %}{% endblock %}
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:12px;max-width:400px;"></div>
+
+    <script>
+    // Universal notification system
+    window.showNotification = function(message, type = 'success', duration = 4000) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+
+        const colors = {
+            success: {bg: '#d4edda', border: '#28a745', text: '#155724', icon: '✅'},
+            error: {bg: '#f8d7da', border: '#dc3545', text: '#721c24', icon: '❌'},
+            info: {bg: '#d1ecf1', border: '#17a2b8', text: '#0c5460', icon: 'ℹ️'},
+            warning: {bg: '#fff3cd', border: '#ffc107', text: '#856404', icon: '⚠️'}
+        };
+
+        const color = colors[type] || colors.info;
+
+        toast.style.cssText = `
+            background: ${color.bg};
+            color: ${color.text};
+            padding: 16px 20px;
+            border-radius: 8px;
+            border-left: 4px solid ${color.border};
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-weight: 600;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease;
+            cursor: pointer;
+        `;
+
+        toast.innerHTML = `
+            <span style="font-size:20px;">${color.icon}</span>
+            <span style="flex:1;">${message}</span>
+            <span style="opacity:0.5;font-size:20px;line-height:1;">&times;</span>
+        `;
+
+        toast.onclick = () => {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        };
+
+        container.appendChild(toast);
+
+        if (duration > 0) {
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.style.animation = 'slideOut 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, duration);
+        }
+    };
+    </script>
+
+    <style>
+    @keyframes slideIn {
+        from { transform: translateX(400px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(400px); opacity: 0; }
+    }
+    </style>
+  </body>
+  </html>

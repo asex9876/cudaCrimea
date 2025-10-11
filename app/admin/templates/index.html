@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h2>{{ app_name }} — Admin</h2>
+  <p class="muted">Среда: <strong>{{ env }}</strong></p>
+
+  <h3>Быстрые ссылки</h3>
+  <div class="row">
+    <div class="col">
+      <a href="/placements">📋 Заявки на размещение</a>
+      <p class="muted">Модерация и обработка заявок от рекламодателей</p>
+    </div>
+    <div class="col">
+      <a href="/advertisers">💼 Рекламодатели</a>
+      <p class="muted">Управление базой рекламодателей</p>
+    </div>
+    <div class="col">
+      <a href="/ugc">✍️ UGC модерация</a>
+      <p class="muted">Проверка пользовательских событий</p>
+    </div>
+  </div>
+
+  <div class="row mt1">
+    <div class="col">
+      <a href="/events">📅 События</a>
+      <p class="muted">Управление событиями (бесплатные и платные)</p>
+    </div>
+    <div class="col">
+      <a href="/places">📍 Места</a>
+      <p class="muted">База площадок и мест проведения</p>
+    </div>
+    <div class="col">
+      <a href="/stats">📊 Статистика</a>
+      <p class="muted">Доход, клики, просмотры платных размещений</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

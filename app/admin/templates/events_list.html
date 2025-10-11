@@ -1,0 +1,339 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .filter-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .filter-bar select {
+    width: auto;
+    min-width: 150px;
+  }
+  .view-toggle {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .event-card {
+    background: var(--card);
+    border: 1px solid #1b254b;
+    border-radius: 12px;
+    padding: 1rem;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .event-card:hover {
+    border-color: var(--accent);
+  }
+  .event-card.expanded {
+    padding: 1.5rem;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+  .card-compact {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+  .card-compact img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+    border: 1px solid #1b254b;
+  }
+  .card-compact .placeholder-img {
+    width: 80px;
+    height: 80px;
+    background: #1b254b;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 2rem;
+  }
+  .card-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .card-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-meta {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .card-expanded {
+    display: none;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #1b254b;
+  }
+  .event-card.expanded .card-expanded {
+    display: block;
+  }
+  .event-card.expanded .card-compact img {
+    width: 100%;
+    height: 200px;
+    max-width: 400px;
+  }
+  .category-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+  .category-column {
+    background: var(--card);
+    border: 1px solid #1b254b;
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .category-header {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--accent);
+  }
+  .category-item {
+    background: #0f162e;
+    border: 1px solid #1b254b;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .category-item:hover {
+    border-color: var(--accent);
+  }
+  .card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+</style>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+    <h2>События</h2>
+    <a class="btn" href="events/new">Добавить</a>
+  </div>
+
+  <div class="filter-bar">
+    <div>
+      <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:var(--muted);">Город</label>
+      <select id="cityFilter" onchange="applyFilters()">
+        <option value="">Все города</option>
+        {% for city in cities %}
+        <option value="{{ city }}" {% if request.query_params.get('city') == city %}selected{% endif %}>{{ city }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:var(--muted);">Категория</label>
+      <select id="categoryFilter" onchange="applyFilters()">
+        <option value="">Все категории</option>
+        {% for cat_label, cat_slug in categories %}
+        <option value="{{ cat_slug }}" {% if request.query_params.get('category') == cat_slug %}selected{% endif %}>{{ cat_label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:var(--muted);">Сортировка по дате</label>
+      <select id="dateSort" onchange="applyFilters()">
+        <option value="desc" {% if request.query_params.get('sort') == 'desc' or not request.query_params.get('sort') %}selected{% endif %}>Новые → Старые</option>
+        <option value="asc" {% if request.query_params.get('sort') == 'asc' %}selected{% endif %}>Старые → Новые</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:var(--muted);">Статус</label>
+      <select id="statusFilter" onchange="applyFilters()">
+        <option value="">Все статусы</option>
+        <option value="active" {% if request.query_params.get('status') == 'active' %}selected{% endif %}>Активные</option>
+        <option value="past" {% if request.query_params.get('status') == 'past' %}selected{% endif %}>Прошедшие</option>
+        <option value="draft" {% if request.query_params.get('status') == 'draft' %}selected{% endif %}>Черновики</option>
+        <option value="pending_moderation" {% if request.query_params.get('status') == 'pending_moderation' %}selected{% endif %}>На модерации</option>
+      </select>
+    </div>
+
+    <div class="view-toggle" style="align-self:flex-end;">
+      <button class="btn" id="gridViewBtn" onclick="setView('grid')">📇 Карточки</button>
+      <button class="btn" id="columnViewBtn" onclick="setView('columns')">📊 Категории</button>
+    </div>
+  </div>
+
+  <div id="gridView" class="card-grid">
+    {% for e in items %}
+    <div class="event-card" onclick="toggleCard(this)">
+      <div class="card-compact">
+        {% if e.images %}
+          {% set images_array = e.images|fromjson %}
+          {% if images_array and images_array|length > 0 %}
+            <img src="{{ images_array[0] }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+            <div class="placeholder-img" style="display:none;">📸</div>
+          {% elif e.image_url %}
+            <img src="{{ e.image_url }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+            <div class="placeholder-img" style="display:none;">📸</div>
+          {% else %}
+            <div class="placeholder-img">📅</div>
+          {% endif %}
+        {% elif e.image_url %}
+          <img src="{{ e.image_url }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+          <div class="placeholder-img" style="display:none;">📸</div>
+        {% else %}
+          <div class="placeholder-img">📅</div>
+        {% endif %}
+        <div class="card-info">
+          <div class="card-title">
+            {{ e.title }}
+            {% if e.status == 'past' %}
+              <span style="background:#666;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;">Прошло</span>
+            {% elif e.status == 'draft' %}
+              <span style="background:#ffa500;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;">Черновик</span>
+            {% elif e.status == 'pending_moderation' %}
+              <span style="background:#f39c12;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;">На модерации</span>
+            {% elif e.status == 'active' %}
+              <span style="background:#27ae60;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;">Активно</span>
+            {% endif %}
+          </div>
+          <div class="card-meta">
+            📅 {{ e.date }}{% if e.time %} {{ e.time }}{% endif %}<br/>
+            📍 {{ e.venue_name or 'Не указано' }}<br/>
+            🏷️ {{ dict(categories).get(e.category, e.category) }}
+          </div>
+        </div>
+      </div>
+      <div class="card-expanded">
+        {% if e.images %}
+          {% set images_array = e.images|fromjson %}
+          {% if images_array and images_array|length > 0 %}
+            <div style="margin-bottom:1rem;">
+              <strong>Фото ({{ images_array|length }} шт.):</strong>
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+                {% for photo_url in images_array %}
+                  <img src="{{ photo_url }}" alt="Фото события" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #1b254b;" />
+                {% endfor %}
+              </div>
+            </div>
+          {% elif e.image_url %}
+            <div style="margin-bottom:1rem;">
+              <strong>Фото:</strong><br/>
+              <img src="{{ e.image_url }}" alt="Фото события" style="max-width:200px;height:auto;border-radius:8px;margin-top:0.5rem;" />
+            </div>
+          {% endif %}
+        {% elif e.image_url %}
+          <div style="margin-bottom:1rem;">
+            <strong>Фото:</strong><br/>
+            <img src="{{ e.image_url }}" alt="Фото события" style="max-width:200px;height:auto;border-radius:8px;margin-top:0.5rem;" />
+          </div>
+        {% endif %}
+        <p><strong>Описание:</strong> {{ e.description or 'Нет описания' }}</p>
+        <p><strong>Адрес:</strong> {{ e.address or 'Не указан' }}</p>
+        <p><strong>Источник:</strong> {{ e.source }}</p>
+        {% if e.source_url %}
+        <p><strong>Ссылка:</strong> <a href="{{ e.source_url }}" target="_blank">{{ e.source_url[:50] }}...</a></p>
+        {% endif %}
+        {% if e.price_min or e.price_max %}
+        <p><strong>Цена:</strong>
+          {% if e.price_min %}от {{ e.price_min }}₽{% endif %}
+          {% if e.price_max %}до {{ e.price_max }}₽{% endif %}
+        </p>
+        {% endif %}
+        <div class="card-actions" onclick="event.stopPropagation()">
+          <a class="btn" href="events/{{ e.id }}">✏️ Редактировать</a>
+          <form method="post" action="events/{{ e.id }}/delete" style="display:inline;">
+            <input type="hidden" name="csrf" value="{{ csrf }}" />
+            <button class="btn" type="submit" onclick="return confirm('Удалить событие?')">🗑️ Удалить</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div id="columnView" class="category-columns" style="display:none;">
+    {% for cat_label, cat_slug in categories %}
+    <div class="category-column">
+      <div class="category-header">{{ cat_label }}</div>
+      {% set cat_events = items | selectattr('category', 'equalto', cat_slug) | list %}
+      {% if cat_events %}
+        {% for e in cat_events %}
+        <div class="category-item" onclick="window.location.href='events/{{ e.id }}'">
+          <div style="font-weight:600;margin-bottom:0.25rem;">{{ e.title }}</div>
+          <div style="font-size:0.85rem;color:var(--muted);">
+            📅 {{ e.date }}{% if e.time %} {{ e.time }}{% endif %}<br/>
+            📍 {{ e.venue_name or 'Не указано' }}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="color:var(--muted);font-size:0.9rem;text-align:center;padding:1rem;">Нет событий</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+function toggleCard(card) {
+  card.classList.toggle('expanded');
+}
+
+function applyFilters() {
+  const city = document.getElementById('cityFilter').value;
+  const category = document.getElementById('categoryFilter').value;
+  const sort = document.getElementById('dateSort').value;
+  const status = document.getElementById('statusFilter').value;
+
+  const params = new URLSearchParams();
+  if (city) params.set('city', city);
+  if (category) params.set('category', category);
+  if (sort) params.set('sort', sort);
+  if (status) params.set('status', status);
+
+  window.location.href = 'events' + (params.toString() ? '?' + params.toString() : '');
+}
+
+function setView(view) {
+  const gridView = document.getElementById('gridView');
+  const columnView = document.getElementById('columnView');
+  const gridBtn = document.getElementById('gridViewBtn');
+  const columnBtn = document.getElementById('columnViewBtn');
+
+  if (view === 'grid') {
+    gridView.style.display = 'grid';
+    columnView.style.display = 'none';
+    gridBtn.style.background = 'var(--accent)';
+    columnBtn.style.background = '';
+    localStorage.setItem('eventsView', 'grid');
+  } else {
+    gridView.style.display = 'none';
+    columnView.style.display = 'grid';
+    gridBtn.style.background = '';
+    columnBtn.style.background = 'var(--accent)';
+    localStorage.setItem('eventsView', 'columns');
+  }
+}
+
+// Restore saved view preference
+document.addEventListener('DOMContentLoaded', function() {
+  const savedView = localStorage.getItem('eventsView') || 'grid';
+  setView(savedView);
+});
+</script>
+{% endblock %}

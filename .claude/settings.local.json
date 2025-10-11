@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Select-Object Id, ProcessName, Path)",
+      "Bash(docker-compose:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker restart:*)",
+      "Bash(python test_media_group.py)",
+      "Bash(findstr:*)",
+      "Bash(python:*)",
+      "Bash(move:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(git init:*)",
+      "Bash(git config:*)",
+      "Bash(timeout 5 docker logs cuda_worker -f)",
+      "Bash(exit 0)",
+      "Bash(timeout 10 docker logs cuda_api -f)",
+      "Bash(cd:*)",
+      "Bash(timeout 5 docker logs cuda_api -f)",
+      "Bash(timeout 10 curl -I \"https://sevastopol.kassa24.ru/event/karmen-1\")",
+      "Bash(timeout 30 docker exec cuda_api python -m app.ingestors.sevastopol_kassa24)",
+      "Bash(/dev/null)",
+      "Bash(timeout 120 docker exec cuda_api python -m app.ingestors.sevastopol_kassa24)",
+      "Bash(timeout 120 docker exec cuda_api python -m app.ingestors.afisha82_ru)",
+      "Bash(timeout 10 docker compose ps)",
+      "Bash(timeout 5 docker logs cuda_api --tail 20)",
+      "Bash(timeout 5 docker logs cuda_bot --tail 15)",
+      "Bash(timeout 5 docker logs cuda_worker --tail 10)",
+      "Bash(timeout 10 curl -I http://localhost/admin/)",
+      "Bash(timeout 10 curl -I http://localhost:8000/)",
+      "Bash(timeout 10 curl http://localhost:8000/health)",
+      "Bash(timeout 10 curl -I http://localhost:8000/docs)",
+      "Bash(powershell:*)",
+      "Bash(timeout:*)",
+      "Bash(dir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

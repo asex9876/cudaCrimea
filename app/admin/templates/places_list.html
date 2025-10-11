@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h2>Места</h2>
+    <a class="btn" href="/places/new">Добавить</a>
+  </div>
+  <table>
+    <thead><tr><th>Название</th><th>Категория</th><th>Адрес</th><th>Рейтинг</th><th></th></tr></thead>
+    <tbody>
+      {% for p in items %}
+      <tr>
+        <td>{% if p.image_url %}<img src="{{ p.image_url }}" style="height:32px;vertical-align:middle;margin-right:.5rem;" />{% endif %}{{ p.name }}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ p.address }}</td>
+        <td>{{ p.rating if p.rating is not none else '' }}</td>
+        <td>
+          <a class="btn" href="/places/{{ p.id }}">Редактировать</a>
+          <form method="post" action="/places/{{ p.id }}/delete" style="display:inline;">
+            <input type="hidden" name="csrf" value="{{ csrf }}" />
+            <button class="btn" type="submit">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

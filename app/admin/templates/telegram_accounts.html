@@ -1,0 +1,469 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .accounts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    .account-card {
+        background: var(--card);
+        border: 2px solid #1b254b;
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s ease;
+    }
+    .account-card.active {
+        border-color: #4CAF50;
+    }
+    .account-card:hover {
+        border-color: var(--accent);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+    .account-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+    .account-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: bold;
+        color: white;
+    }
+    .account-avatar img {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    .account-info h3 {
+        margin: 0 0 5px 0;
+        font-size: 18px;
+    }
+    .account-info .username {
+        color: var(--muted);
+        font-size: 14px;
+    }
+    .account-status {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 10px;
+    }
+    .account-status.active {
+        background: #4CAF50;
+        color: white;
+    }
+    .account-status.pending {
+        background: #FFC107;
+        color: #000;
+    }
+    .account-status.error {
+        background: #F44336;
+        color: white;
+    }
+    .add-account-card {
+        border: 2px dashed #2b3a4a;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        min-height: 200px;
+    }
+    .add-account-card:hover {
+        border-color: var(--accent);
+        background: rgba(102, 126, 234, 0.05);
+    }
+    .add-account-card h3 {
+        margin: 10px 0;
+        color: var(--accent);
+    }
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.6);
+    }
+    .modal-content {
+        background-color: var(--card);
+        margin: 10% auto;
+        padding: 30px;
+        border: 2px solid #2b3a4a;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .modal-header h2 {
+        margin: 0;
+    }
+    .close {
+        color: #aaa;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .close:hover {
+        color: #fff;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+    }
+    .form-group input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #2b3a4a;
+        border-radius: 6px;
+        background: #0f1419;
+        color: #e5e9f0;
+        font-size: 14px;
+    }
+    .form-group small {
+        display: block;
+        margin-top: 5px;
+        color: #999;
+    }
+    .btn-primary {
+        background: var(--accent);
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        width: 100%;
+    }
+    .btn-primary:hover {
+        background: #5a7bc8;
+    }
+    .btn-danger {
+        background: #F44336;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-top: 10px;
+    }
+    .btn-danger:hover {
+        background: #d32f2f;
+    }
+    #step1, #step2 {
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    #step1.fade-out, #step2.fade-out {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    #step2.fade-in {
+        opacity: 1;
+        transform: translateX(0);
+    }
+</style>
+
+<h1>📱 Telegram Аккаунты</h1>
+
+{% if request.query_params.get('added') %}
+<div style="background:#d4edda;color:#155724;padding:16px 20px;border-radius:8px;margin-bottom:20px;border-left:4px solid #28a745;font-weight:600;font-size:15px;">
+    ✅ Аккаунт успешно авторизован и добавлен!
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div style="background:#f8d7da;color:#721c24;padding:12px;border-radius:6px;margin-bottom:20px;">
+    ❌ Ошибка: {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<div class="accounts-grid">
+    <!-- Existing accounts -->
+    {% for account in accounts %}
+    <div class="account-card {% if account.is_active %}active{% endif %}">
+        <div class="account-header">
+            <div class="account-avatar">
+                {% if account.photo_url %}
+                    <img src="{{ account.photo_url }}" alt="{{ account.first_name }}">
+                {% else %}
+                    {{ account.first_name[0] if account.first_name else '?' }}
+                {% endif %}
+            </div>
+            <div class="account-info">
+                <h3>{{ account.first_name }} {{ account.last_name or '' }}</h3>
+                <div class="username">@{{ account.username or account.phone }}</div>
+            </div>
+        </div>
+
+        <div class="account-status {{ account.status }}">
+            {% if account.status == 'active' %}✓ Активен
+            {% elif account.status == 'pending' %}⏳ Ожидает кода
+            {% else %}⚠️ Ошибка{% endif %}
+        </div>
+
+        <div style="margin-top:15px;font-size:12px;color:#999;">
+            <div>ID: {{ account.user_id }}</div>
+            <div>Добавлен: {{ account.created_at.strftime('%d.%m.%Y %H:%M') if account.created_at else '-' }}</div>
+        </div>
+
+        <form method="post" action="telegram-accounts/delete" style="margin-top:10px;">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <input type="hidden" name="account_id" value="{{ account.id }}">
+            <button type="submit" class="btn-danger" onclick="return confirm('Удалить этот аккаунт?')">🗑 Удалить</button>
+        </form>
+    </div>
+    {% endfor %}
+
+    <!-- Add new account card -->
+    <div class="account-card add-account-card" onclick="openAddAccountModal()">
+        <div style="font-size:48px;">➕</div>
+        <h3>Добавить аккаунт</h3>
+        <p style="color:#999;margin:0;">Подключите Telegram аккаунт</p>
+    </div>
+</div>
+
+<!-- Add Account Modal -->
+<div id="addAccountModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">➕ Добавить Telegram аккаунт</h2>
+            <span class="close" onclick="closeAddAccountModal()">&times;</span>
+        </div>
+
+        <!-- Step 1: Phone and API credentials -->
+        <div id="step1">
+            <form id="addAccountForm" onsubmit="submitStep1(event)">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+
+                <div class="form-group">
+                    <label>Номер телефона</label>
+                    <input type="tel" id="phone" name="phone" placeholder="+79001234567" required>
+                    <small>Формат: +79001234567 (с кодом страны)</small>
+                </div>
+
+                <div class="form-group">
+                    <label>API ID</label>
+                    <input type="text" id="api_id" name="api_id" placeholder="12345678" required>
+                    <small>Получить на <a href="https://my.telegram.org/apps" target="_blank" style="color:var(--accent);">my.telegram.org/apps</a></small>
+                </div>
+
+                <div class="form-group">
+                    <label>API Hash</label>
+                    <input type="text" id="api_hash" name="api_hash" placeholder="abcdef1234567890..." required>
+                </div>
+
+                <div id="step1Error" style="display:none;background:#f8d7da;color:#721c24;padding:12px;border-radius:6px;margin-bottom:15px;"></div>
+
+                <button type="submit" class="btn-primary" id="step1Btn">
+                    <span id="step1BtnText">Продолжить →</span>
+                    <span id="step1Spinner" style="display:none;">⏳ Отправка кода...</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Step 2: Code confirmation (hidden by default) -->
+        <div id="step2" style="display:none;">
+            <p style="color:#999;margin-bottom:20px;">
+                Telegram отправил код на номер <strong id="confirmPhone"></strong>
+            </p>
+
+            <form id="confirmForm" onsubmit="submitStep2(event)">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <input type="hidden" id="account_id" name="account_id" value="">
+
+                <div class="form-group">
+                    <label>Код из Telegram</label>
+                    <input type="text" id="code" name="code" placeholder="12345" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label>2FA пароль (если включен)</label>
+                    <input type="password" id="password" name="password" placeholder="Ваш облачный пароль">
+                    <small>Оставьте пустым, если не включена двухфакторная аутентификация</small>
+                </div>
+
+                <div id="step2Error" style="display:none;background:#f8d7da;color:#721c24;padding:12px;border-radius:6px;margin-bottom:15px;"></div>
+
+                <button type="submit" class="btn-primary" id="step2Btn">
+                    <span id="step2BtnText">Подтвердить ✓</span>
+                    <span id="step2Spinner" style="display:none;">⏳ Проверка...</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<script>
+// Check if there's a pending account on page load
+{% if pending_account %}
+window.addEventListener('DOMContentLoaded', function() {
+    // Open modal directly to step 2
+    document.getElementById('step1').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+    document.getElementById('modalTitle').textContent = '🔐 Введите код подтверждения';
+    document.getElementById('confirmPhone').textContent = '{{ pending_account.phone }}';
+    document.getElementById('account_id').value = '{{ pending_account.id }}';
+    document.getElementById('addAccountModal').style.display = 'block';
+
+    // Focus on code input
+    setTimeout(() => document.getElementById('code').focus(), 100);
+});
+{% endif %}
+
+function openAddAccountModal() {
+    // Reset form to step 1
+    document.getElementById('step1').style.display = 'block';
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('modalTitle').textContent = '➕ Добавить Telegram аккаунт';
+    document.getElementById('addAccountForm').reset();
+    document.getElementById('step1Error').style.display = 'none';
+    document.getElementById('step2Error').style.display = 'none';
+    document.getElementById('addAccountModal').style.display = 'block';
+}
+
+function closeAddAccountModal() {
+    document.getElementById('addAccountModal').style.display = 'none';
+}
+
+// Submit step 1: Send credentials and get code
+async function submitStep1(event) {
+    event.preventDefault();
+
+    const btn = document.getElementById('step1Btn');
+    const btnText = document.getElementById('step1BtnText');
+    const spinner = document.getElementById('step1Spinner');
+    const errorDiv = document.getElementById('step1Error');
+
+    // Show loading
+    btn.disabled = true;
+    btnText.style.display = 'none';
+    spinner.style.display = 'inline';
+    errorDiv.style.display = 'none';
+
+    const formData = new FormData(event.target);
+
+    try {
+        const response = await fetch('telegram-accounts/add', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Animate transition to step 2
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+
+            step1.classList.add('fade-out');
+
+            setTimeout(() => {
+                step1.style.display = 'none';
+                step2.style.display = 'block';
+                document.getElementById('modalTitle').textContent = '🔐 Введите код подтверждения';
+                document.getElementById('confirmPhone').textContent = data.phone;
+                document.getElementById('account_id').value = data.account_id;
+
+                // Animate step2 in
+                step2.classList.add('fade-in');
+
+                // Focus on code input
+                setTimeout(() => document.getElementById('code').focus(), 100);
+            }, 300);
+        } else {
+            // Show error
+            errorDiv.textContent = data.error || 'Произошла ошибка';
+            errorDiv.style.display = 'block';
+        }
+    } catch (error) {
+        errorDiv.textContent = 'Ошибка сети: ' + error.message;
+        errorDiv.style.display = 'block';
+    } finally {
+        // Hide loading
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        spinner.style.display = 'none';
+    }
+}
+
+// Submit step 2: Confirm code
+async function submitStep2(event) {
+    event.preventDefault();
+
+    const btn = document.getElementById('step2Btn');
+    const btnText = document.getElementById('step2BtnText');
+    const spinner = document.getElementById('step2Spinner');
+    const errorDiv = document.getElementById('step2Error');
+
+    // Show loading
+    btn.disabled = true;
+    btnText.style.display = 'none';
+    spinner.style.display = 'inline';
+    errorDiv.style.display = 'none';
+
+    const formData = new FormData(event.target);
+
+    try {
+        const response = await fetch('telegram-accounts/confirm', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Success! Reload page to show new account
+            window.location.href = 'telegram-accounts?added=1';
+        } else {
+            // Show error
+            errorDiv.textContent = data.error || 'Произошла ошибка';
+            errorDiv.style.display = 'block';
+        }
+    } catch (error) {
+        errorDiv.textContent = 'Ошибка сети: ' + error.message;
+        errorDiv.style.display = 'block';
+    } finally {
+        // Hide loading
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        spinner.style.display = 'none';
+    }
+}
+
+// Close modal on outside click
+window.onclick = function(event) {
+    const modal = document.getElementById('addAccountModal');
+    if (event.target == modal) {
+        closeAddAccountModal();
+    }
+}
+</script>
+
+{% endblock %}

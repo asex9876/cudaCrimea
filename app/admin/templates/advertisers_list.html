@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h2>Рекламодатели</h2>
+    <a class="btn" href="/advertisers/new">Добавить</a>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Название</th>
+        <th>Контактное лицо</th>
+        <th>Email</th>
+        <th>Телефон</th>
+        <th>Баланс (₽)</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for adv in items %}
+      <tr>
+        <td>{{ adv.name }}</td>
+        <td>{{ adv.contact_person or '—' }}</td>
+        <td>{{ adv.email }}</td>
+        <td>{{ adv.phone or '—' }}</td>
+        <td>{{ (adv.balance / 100)|round(2) }}</td>
+        <td>
+          <a class="btn" href="/advertisers/{{ adv.id }}">Редактировать</a>
+          <form method="post" action="/advertisers/{{ adv.id }}/delete" style="display:inline;">
+            <input type="hidden" name="csrf" value="{{ csrf }}" />
+            <button class="btn" type="submit" onclick="return confirm('Удалить рекламодателя?')">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

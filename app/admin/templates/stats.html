@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h2>Обзор монетизации</h2>
+  <div class="row">
+    <div class="col">
+      <h3>Общий доход</h3>
+      <p style="font-size: 2rem; margin: 0;">{{ (total_revenue / 100)|round(2) }} ₽</p>
+      <p class="muted">Общая сумма оплаченных размещений</p>
+    </div>
+    <div class="col">
+      <h3>Ожидающие заявки</h3>
+      <p style="font-size: 2rem; margin: 0;">{{ pending_requests }}</p>
+      <p class="muted">Заявки на модерации</p>
+    </div>
+    <div class="col">
+      <h3>Активные размещения</h3>
+      <p style="font-size: 2rem; margin: 0;">{{ active_placements }}</p>
+      <p class="muted">Платных событий в боте</p>
+    </div>
+  </div>
+</div>
+
+<div class="card mt1">
+  <h2>Взаимодействия по дням</h2>
+  <div class="row">
+    <div class="col">
+      <h3>Просмотры</h3>
+      <table>
+        <thead><tr><th>День</th><th>Просмотры</th></tr></thead>
+        <tbody>
+          {% for d, c in series['view'] %}
+          <tr><td>{{ d }}</td><td>{{ c }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <h3>Клики</h3>
+      <table>
+        <thead><tr><th>День</th><th>Клики</th></tr></thead>
+        <tbody>
+          {% for d, c in series['click'] %}
+          <tr><td>{{ d }}</td><td>{{ c }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card mt1">
+  <h2>Топ платных событий</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Название</th>
+        <th>Просмотры</th>
+        <th>Клики</th>
+        <th>CTR</th>
+        <th>Потрачено (₽)</th>
+        <th>Бюджет (₽)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for id, title, clicks, views, spent, budget in top_paid_events %}
+      <tr>
+        <td><a href="/events/{{ id }}">{{ title }}</a></td>
+        <td>{{ views }}</td>
+        <td>{{ clicks }}</td>
+        <td>{% if views > 0 %}{{ ((clicks / views * 100)|round(2)) }}%{% else %}—{% endif %}</td>
+        <td>{{ (spent / 100)|round(2) if spent else 0 }}</td>
+        <td>{{ (budget / 100)|round(2) if budget else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+

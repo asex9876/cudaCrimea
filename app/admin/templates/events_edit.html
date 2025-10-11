@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width:900px;">
+  <h2>{{ 'Новое событие' if not item else 'Редактирование события' }}</h2>
+  {% if error %}<p style="color:#ff6b6b;">{{ error }}</p>{% endif %}
+  <form method="post" action="/events/save" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    {% if item %}<input type="hidden" name="id" value="{{ item.id }}" />{% endif %}
+    <div class="row">
+      <div class="col"><label>Заголовок</label><input name="title" value="{{ item.title if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Дата</label><input name="date" type="date" value="{{ item.date if item else '' }}" /></div>
+      <div class="col"><label>Время</label><input name="time" type="time" value="{{ item.time if item else '' }}" /></div>
+      <div class="col"><label>Категория</label><input name="category" value="{{ item.category if item else 'other' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Город</label><input name="city" value="{{ item.city if item else '' }}" /></div>
+      <div class="col"><label>Площадка</label><input name="venue_name" value="{{ item.venue_name if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Адрес</label><input name="address" value="{{ item.address if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Широта</label><input name="lat" type="number" step="0.000001" value="{{ item.lat if item and item.lat is not none else '' }}" /></div>
+      <div class="col"><label>Долгота</label><input name="lon" type="number" step="0.000001" value="{{ item.lon if item and item.lon is not none else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Цена от</label><input name="price_min" type="number" value="{{ item.price_min if item and item.price_min is not none else '' }}" /></div>
+      <div class="col"><label>Цена до</label><input name="price_max" type="number" value="{{ item.price_max if item and item.price_max is not none else '' }}" /></div>
+      <div class="col"><label>Качество</label><input name="quality_score" type="number" step="0.1" min="0" max="1" value="{{ item.quality_score if item else 0.5 }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Источник</label><input name="source" value="{{ item.source if item else 'editor' }}" /></div>
+      <div class="col"><label>URL</label><input name="source_url" value="{{ item.source_url if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Фото (загрузка)</label><input type="file" name="image_file" accept="image/*" /></div>
+      <div class="col"><label>Фото (URL)</label><input name="image_url_field" value="{{ item.image_url if item and item.image_url else '' }}" /></div>
+    </div>
+    <div class="mt1 right"><button class="btn" type="submit">Сохранить</button></div>
+  </form>
+
+  <h3 class="mt1">Предпросмотр (как в боте)</h3>
+  <div class="card" id="preview" style="background:#0b1226;">
+    {% set img = item.image_url if item and item.image_url else '' %}
+    <div id="prev_img">{% if img %}<img src="{{ img }}" style="max-width:100%;border-radius:8px;" />{% endif %}</div>
+    <pre id="prev_text" style="white-space:pre-wrap;">{{ (item.title ~ ' (' ~ item.category ~ ')\n' ~ item.date ~ ((' ' ~ item.time) if item.time else '') ~ '\n' ~ item.venue_name ~ '\n' ~ item.address)|trim }}</pre>
+  </div>
+  <script>
+    const f = document.querySelector('form');
+    const prevText = document.getElementById('prev_text');
+    const prevImg = document.getElementById('prev_img');
+    function updatePreview(){
+      const title = f.title.value || '';
+      const category = f.category.value || '';
+      const date = f.date.value || '';
+      const time = f.time.value || '';
+      const venue = f.venue_name.value || '';
+      const address = f.address.value || '';
+      prevText.textContent = `${title} (${category})\n${date}${time?(' '+time):''}\n${venue}\n${address}`.trim();
+      const url = f.image_url_field.value || '';
+      const file = f.image_file.files && f.image_file.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = e => { prevImg.innerHTML = `<img src="${e.target.result}" style="max-width:100%;border-radius:8px;" />`; };
+        reader.readAsDataURL(file);
+      } else if (url) {
+        prevImg.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px;" />`;
+      } else {
+        prevImg.innerHTML = '';
+      }
+    }
+    f.addEventListener('input', updatePreview);
+    f.addEventListener('change', updatePreview);
+  </script>
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h2>Карточки (curated)</h2>
+    <a class="btn" href="/cards/new">Добавить</a>
+  </div>
+  <table>
+    <thead><tr><th>Заголовок</th><th>Тип</th><th>Город</th><th>Период</th><th>Приоритет</th><th></th></tr></thead>
+    <tbody>
+      {% for c in items %}
+      <tr>
+        <td>{% if c.image_url %}<img src="{{ c.image_url }}" style="height:32px;vertical-align:middle;margin-right:.5rem;" />{% endif %}{{ c.title }}<div class="muted">{{ c.subtitle }}</div></td>
+        <td>{{ c.item_type }}</td>
+        <td>{{ c.city }}</td>
+        <td>{{ c.active_from }} — {{ c.active_to }}</td>
+        <td>{{ c.priority }}</td>
+        <td>
+          <a class="btn" href="/cards/{{ c.id }}">Редактировать</a>
+          <form method="post" action="/cards/{{ c.id }}/delete" style="display:inline;">
+            <input type="hidden" name="csrf" value="{{ csrf }}" />
+            <button class="btn" type="submit">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+

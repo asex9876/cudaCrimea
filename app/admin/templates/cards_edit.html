@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width:900px;">
+  <h2>{{ 'Новая карточка' if not item else 'Редактирование карточки' }}</h2>
+  <form method="post" action="/cards/save" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    {% if item %}<input type="hidden" name="id" value="{{ item.id }}" />{% endif %}
+    <div class="row">
+      <div class="col"><label>Тип (event/place/external)</label><input name="item_type" value="{{ item.item_type if item else 'external' }}" /></div>
+      <div class="col"><label>Ref ID (UUID)</label><input name="ref_id" value="{{ item.ref_id if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Заголовок</label><input name="title" value="{{ item.title if item else '' }}" /></div>
+      <div class="col"><label>Подзаголовок</label><input name="subtitle" value="{{ item.subtitle if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Категория</label><input name="category" value="{{ item.category if item else '' }}" /></div>
+      <div class="col"><label>Город</label><input name="city" value="{{ item.city if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Адрес</label><input name="address" value="{{ item.address if item else '' }}" /></div>
+      <div class="col"><label>Кнопка URL</label><input name="button_url" value="{{ item.button_url if item else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Широта</label><input name="lat" type="number" step="0.000001" value="{{ item.lat if item and item.lat is not none else '' }}" /></div>
+      <div class="col"><label>Долгота</label><input name="lon" type="number" step="0.000001" value="{{ item.lon if item and item.lon is not none else '' }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Активен с</label><input name="active_from" type="date" value="{{ item.active_from if item else '' }}" /></div>
+      <div class="col"><label>Активен до</label><input name="active_to" type="date" value="{{ item.active_to if item else '' }}" /></div>
+      <div class="col"><label>Приоритет</label><input name="priority" type="number" value="{{ item.priority if item else 0 }}" /></div>
+    </div>
+    <div class="row mt1">
+      <div class="col"><label>Фото (загрузка)</label><input type="file" name="image_file" accept="image/*" /></div>
+      <div class="col"><label>Фото (URL)</label><input name="image_url_field" value="{{ item.image_url if item and item.image_url else '' }}" /></div>
+      <div class="col"><label>Включена</label><input type="checkbox" name="is_active" {% if item and item.is_active %}checked{% endif %} /></div>
+    </div>
+    <div class="mt1 right"><button class="btn" type="submit">Сохранить</button></div>
+  </form>
+
+  <h3 class="mt1">Предпросмотр (бот)</h3>
+  <div class="card" id="preview" style="background:#0b1226;">
+    {% set img = item.image_url if item and item.image_url else '' %}
+    <div id="prev_img">{% if img %}<img src="{{ img }}" style="max-width:100%;border-radius:8px;" />{% endif %}</div>
+    <pre id="prev_text" style="white-space:pre-wrap;">{{ (item.title ~ ('\n' ~ item.subtitle if item.subtitle else '') ~ ('\n' ~ item.address if item.address else ''))|trim }}</pre>
+  </div>
+  <script>
+    const f = document.querySelector('form');
+    const prevText = document.getElementById('prev_text');
+    const prevImg = document.getElementById('prev_img');
+    function updatePreview(){
+      const title = f.title.value || '';
+      const subtitle = f.subtitle.value || '';
+      const address = f.address.value || '';
+      prevText.textContent = `${title}\n${subtitle}\n${address}`.trim();
+      const url = f.image_url_field.value || '';
+      const file = f.image_file.files && f.image_file.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = e => { prevImg.innerHTML = `<img src="${e.target.result}" style="max-width:100%;border-radius:8px;" />`; };
+        reader.readAsDataURL(file);
+      } else if (url) {
+        prevImg.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px;" />`;
+      } else {
+        prevImg.innerHTML = '';
+      }
+    }
+    f.addEventListener('input', updatePreview);
+    f.addEventListener('change', updatePreview);
+  </script>
+</div>
+{% endblock %}
+

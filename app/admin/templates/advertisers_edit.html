@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h2>{% if item %}Редактировать рекламодателя{% else %}Новый рекламодатель{% endif %}</h2>
+  <form method="post" action="/advertisers/save">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    {% if item %}
+    <input type="hidden" name="id" value="{{ item.id }}" />
+    {% endif %}
+
+    <label>Название компании *</label>
+    <input type="text" name="name" value="{{ item.name if item else '' }}" required />
+
+    <label>Контактное лицо</label>
+    <input type="text" name="contact_person" value="{{ item.contact_person if item else '' }}" />
+
+    <label>Email *</label>
+    <input type="email" name="email" value="{{ item.email if item else '' }}" required />
+
+    <label>Телефон</label>
+    <input type="text" name="phone" value="{{ item.phone if item else '' }}" />
+
+    <label>Баланс (₽)</label>
+    <input type="number" name="balance" value="{{ (item.balance / 100)|round(2) if item else 0 }}" step="0.01" />
+
+    <div style="margin-top:1rem;">
+      <button class="btn" type="submit">Сохранить</button>
+      <a class="btn" href="/advertisers">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

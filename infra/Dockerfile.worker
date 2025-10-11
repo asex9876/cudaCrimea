@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1
+# Use official Playwright image with browsers preinstalled
+FROM mcr.microsoft.com/playwright/python:v1.46.0-jammy
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    POETRY_HOME=/opt/poetry \
+    PIP_DEFAULT_TIMEOUT=600 \
+    POETRY_HTTP_TIMEOUT=1200 \
+    POETRY_MAX_WORKERS=1
+
+RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="$POETRY_HOME/bin:$PATH"
+
+WORKDIR /app
+
+COPY pyproject.toml ./
+RUN pip install -U pip setuptools wheel && \
+    poetry config virtualenvs.create false && \
+    poetry lock --no-interaction || true && \
+    poetry install --no-root --no-interaction --no-ansi --with crawl
+
+COPY app ./app
+
+CMD ["python", "-m", "app.ingestors.worker"]
