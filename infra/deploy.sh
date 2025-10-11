@@ -46,14 +46,14 @@ fi
 
 # Остановка старых контейнеров (если есть)
 echo "🛑 Остановка старых контейнеров..."
-docker-compose -f docker-compose.prod.yml down || true
+docker compose -f docker-compose.prod.yml down || true
 
 # Сборка и запуск
 echo "🔨 Сборка Docker образов..."
-docker-compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml build
 
 echo "🚢 Запуск контейнеров..."
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 
 # Ожидание запуска базы данных
 echo "⏳ Ожидание запуска базы данных..."
@@ -61,21 +61,21 @@ sleep 10
 
 # Применение миграций (если есть)
 echo "🗄️  Применение миграций базы данных..."
-docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head || echo "⚠️  Миграции не применены (возможно их нет)"
+docker compose -f docker-compose.prod.yml exec -T api alembic upgrade head || echo "⚠️  Миграции не применены (возможно их нет)"
 
 # Проверка статуса
 echo "✅ Проверка статуса контейнеров..."
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 echo ""
 echo "✨ Деплой завершён!"
 echo ""
 echo "📋 Полезные команды:"
-echo "  Логи всех сервисов:    docker-compose -f docker-compose.prod.yml logs -f"
+echo "  Логи всех сервисов:    docker compose -f docker-compose.prod.yml logs -f"
 echo "  Логи бота:             docker logs cuda_bot -f"
 echo "  Логи API:              docker logs cuda_api -f"
-echo "  Перезапуск:            docker-compose -f docker-compose.prod.yml restart"
-echo "  Остановка:             docker-compose -f docker-compose.prod.yml down"
+echo "  Перезапуск:            docker compose -f docker-compose.prod.yml restart"
+echo "  Остановка:             docker compose -f docker-compose.prod.yml down"
 echo ""
 echo "🌐 Сервисы доступны по адресам:"
 echo "  Админка: http://$(hostname -I | awk '{print $1}')/admin/"
