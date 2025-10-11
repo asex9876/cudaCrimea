@@ -1,7 +1,7 @@
 """add_telegram_accounts
 
 Revision ID: 0008
-Revises: 0007
+Revises: 0007_add_paid_placements
 Create Date: 2025-10-06
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '0008'
-down_revision = '0007'
+down_revision = '0007_add_paid_placements'
 branch_labels = None
 depends_on = None
 
