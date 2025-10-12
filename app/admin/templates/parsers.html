@@ -235,6 +235,79 @@
         border-color: #f56565 !important;
         color: white;
     }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            padding: 16px;
+        }
+        .stat-value {
+            font-size: 28px;
+        }
+        .stat-label {
+            font-size: 11px;
+        }
+        .parsers-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        .parser-card {
+            padding: 16px;
+        }
+        .parser-header h3 {
+            font-size: 16px;
+        }
+        .parser-description {
+            font-size: 13px;
+        }
+        .setting-group label {
+            font-size: 12px;
+        }
+        .setting-group input, .setting-group select, .setting-group textarea {
+            font-size: 14px;
+            padding: 8px 10px;
+        }
+        .btn-run, .btn-save, .btn-run-all {
+            font-size: 13px;
+            padding: 10px 16px;
+        }
+        .global-actions {
+            flex-direction: column;
+            gap: 12px;
+        }
+        .tg-account-card {
+            padding: 10px !important;
+        }
+        .tg-status-btn {
+            font-size: 12px !important;
+            padding: 8px !important;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .stat-card {
+            padding: 12px;
+        }
+        .stat-value {
+            font-size: 24px;
+        }
+        h1 {
+            font-size: 1.5rem;
+        }
+        .badge {
+            font-size: 9px;
+            padding: 3px 6px;
+        }
+    }
 </style>
 
 <h1>⚙️ Настройка парсеров</h1>

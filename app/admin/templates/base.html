@@ -8,24 +8,94 @@
       :root { --bg:#0b1020; --card:#121a33; --muted:#9aa4b2; --fg:#e5e9f0; --accent:#6ea8fe; }
       body { background:var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; }
       a{ color:var(--accent); text-decoration:none; }
-      header { padding:1rem 1.25rem; background:#0f162e; border-bottom:1px solid #1b254b; }
-      nav a { margin-right:1rem; }
-      .wrap { padding:1rem; }
+      header { padding:1rem 1.25rem; background:#0f162e; border-bottom:1px solid #1b254b; position: sticky; top: 0; z-index: 1000; }
+      nav { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+      nav a { white-space: nowrap; }
+      .wrap { padding:1rem; max-width: 100%; overflow-x: hidden; }
       .card { background:var(--card); border:1px solid #1b254b; border-radius:12px; padding:1rem; }
-      table { width:100%; border-collapse:collapse; }
+      table { width:100%; border-collapse:collapse; font-size: 0.9rem; }
       th, td { padding:.5rem .75rem; border-bottom:1px solid #1b254b; vertical-align:top; }
-      input, select, textarea { background:#0b1226; color:var(--fg); border:1px solid #1b254b; border-radius:8px; padding:.5rem .6rem; width:100%; }
-      .btn { background:#1b254b; border:1px solid #2a386a; color:var(--fg); padding:.4rem .8rem; border-radius:8px; cursor:pointer; }
+      input, select, textarea { background:#0b1226; color:var(--fg); border:1px solid #1b254b; border-radius:8px; padding:.5rem .6rem; width:100%; box-sizing: border-box; font-size: 16px; }
+      .btn { background:#1b254b; border:1px solid #2a386a; color:var(--fg); padding:.4rem .8rem; border-radius:8px; cursor:pointer; white-space: nowrap; }
       .row { display:flex; gap:1rem; flex-wrap:wrap; }
       .col { flex:1 1 320px; }
       .muted { color:var(--muted); font-size:.9rem; }
       .mt1{ margin-top:1rem; }
       .right { text-align:right; }
+
+      /* Mobile Responsive Styles */
+      @media (max-width: 768px) {
+        header { padding: 0.75rem; }
+        nav { font-size: 0.85rem; gap: 0.5rem; }
+        nav a { padding: 0.4rem 0.6rem; background: #1b254b; border-radius: 6px; }
+        nav a[style*="float:right"] { float: none !important; margin-left: auto; }
+        .wrap { padding: 0.75rem; }
+        .card { padding: 0.75rem; border-radius: 8px; }
+        h1, h2 { font-size: 1.5rem; margin: 0.5rem 0; }
+        h3 { font-size: 1.2rem; }
+
+        /* Scrollable tables */
+        .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -0.75rem; padding: 0 0.75rem; }
+        table { min-width: 600px; font-size: 0.85rem; }
+        th, td { padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+
+        /* Form adjustments */
+        input, select, textarea { font-size: 16px; padding: 0.6rem; }
+        .btn { padding: 0.6rem 1rem; font-size: 0.9rem; width: 100%; }
+
+        /* Grid adjustments */
+        .row { gap: 0.75rem; }
+        .col { flex: 1 1 100%; }
+
+        /* Toast notifications */
+        #toast-container { top: 10px; right: 10px; left: 10px; max-width: none; }
+      }
+
+      @media (max-width: 480px) {
+        header { padding: 0.5rem; }
+        nav { font-size: 0.75rem; gap: 0.4rem; }
+        nav a { padding: 0.35rem 0.5rem; }
+        .wrap { padding: 0.5rem; }
+        table { min-width: 500px; font-size: 0.8rem; }
+        th, td { padding: 0.3rem 0.4rem; }
+        h1, h2 { font-size: 1.3rem; }
+      }
+
+      /* Mobile Navigation Menu */
+      .mobile-menu-toggle {
+        display: none;
+        background: #1b254b;
+        border: none;
+        color: var(--fg);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 1.2rem;
+      }
+
+      @media (max-width: 768px) {
+        .mobile-menu-toggle { display: block; }
+        nav.collapsed { display: none; }
+        nav.expanded {
+          display: flex;
+          flex-direction: column;
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: #0f162e;
+          border-bottom: 1px solid #1b254b;
+          padding: 0.75rem;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        nav.expanded a { width: 100%; text-align: left; }
+      }
     </style>
   </head>
   <body>
     <header>
-      <nav>
+      <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+      <nav id="mainNav" class="collapsed">
         <a href="/admin/ugc">ОЧЕРЕДЬ</a>
         <a href="/admin/placements">Заявки</a>
         <a href="/admin/advertisers">Рекламодатели</a>
@@ -49,6 +119,52 @@
     <div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:12px;max-width:400px;"></div>
 
     <script>
+    // Mobile menu toggle
+    function toggleMobileMenu() {
+        const nav = document.getElementById('mainNav');
+        if (nav.classList.contains('collapsed')) {
+            nav.classList.remove('collapsed');
+            nav.classList.add('expanded');
+        } else {
+            nav.classList.remove('expanded');
+            nav.classList.add('collapsed');
+        }
+    }
+
+    // Close mobile menu when clicking outside
+    document.addEventListener('click', function(event) {
+        const nav = document.getElementById('mainNav');
+        const toggle = document.querySelector('.mobile-menu-toggle');
+        if (nav && toggle && !nav.contains(event.target) && !toggle.contains(event.target)) {
+            if (window.innerWidth <= 768) {
+                nav.classList.remove('expanded');
+                nav.classList.add('collapsed');
+            }
+        }
+    });
+
+    // Show nav on desktop resize
+    window.addEventListener('resize', function() {
+        const nav = document.getElementById('mainNav');
+        if (window.innerWidth > 768 && nav) {
+            nav.classList.remove('collapsed', 'expanded');
+        }
+    });
+
+    // Wrap tables in scrollable containers for mobile
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('table').forEach(function(table) {
+                if (!table.parentElement.classList.contains('table-container')) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'table-container';
+                    table.parentNode.insertBefore(wrapper, table);
+                    wrapper.appendChild(table);
+                }
+            });
+        }
+    });
+
     // Universal notification system
     window.showNotification = function(message, type = 'success', duration = 4000) {
         const container = document.getElementById('toast-container');
