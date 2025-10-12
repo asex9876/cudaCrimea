@@ -10,6 +10,7 @@ from .tables import (
     Event,
     EventImage,
     LLMUsage,
+    ParsedMessage,
     Place,
     PlacementRequest,
     UGCSubmission,
@@ -32,4 +33,5 @@ __all__ = [
     "TelegramAccount",
     "LLMUsage",
     "BotSettings",
+    "ParsedMessage",
 ]

@@ -492,3 +492,24 @@ class BotSettings(Base):
     __table_args__ = (
         CheckConstraint("id = 1", name="ck_bot_settings_singleton"),
     )
+
+
+class ParsedMessage(Base):
+    """Track parsed Telegram messages to avoid duplicates."""
+
+    __tablename__ = "parsed_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    channel_username: Mapped[str] = mapped_column(String)  # Channel username (e.g., "simferopol_afisha")
+    message_id: Mapped[int] = mapped_column(BigInteger)  # Telegram message ID
+    parsed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    event_created: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))  # Was event created from this message
+    event_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("events.id", ondelete="SET NULL"), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("channel_username", "message_id", name="uq_parsed_messages_channel_msg"),
+        Index("ix_parsed_messages_channel", "channel_username"),
+        Index("ix_parsed_messages_parsed_at", "parsed_at"),
+    )

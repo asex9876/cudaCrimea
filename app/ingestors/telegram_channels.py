@@ -176,48 +176,80 @@ def is_event_message(message: Message) -> bool:
     return any(keyword in text_lower for keyword in EVENT_KEYWORDS)
 
 
-async def download_message_photo(client: TelegramClient, message: Message) -> Optional[str]:
+async def download_message_media(client: TelegramClient, message: Message) -> list[str]:
     """
-    Download photo from Telegram message and save to uploads directory.
+    Download photos and videos from Telegram message and save to uploads directory.
 
     Args:
         client: Telethon client
-        message: Telegram message with photo
+        message: Telegram message with media
 
     Returns:
-        Relative path to saved image or None
+        List of relative paths to saved media files
     """
-    if not message.photo:
-        return None
+    media_paths = []
 
     try:
         # Create uploads directory if it doesn't exist
         uploads_dir = Path("/app/app/uploads")
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate unique filename
-        file_ext = "jpg"
-        filename = f"tg_{message.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
-        file_path = uploads_dir / filename
+        # Download photos
+        if message.photo:
+            file_ext = "jpg"
+            filename = f"tg_{message.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+            file_path = uploads_dir / filename
 
-        # Download photo (use message directly to get full size, not message.photo)
-        await client.download_media(message, file=str(file_path))
+            await client.download_media(message.photo, file=str(file_path))
 
-        # Verify file was downloaded and has content
-        if not file_path.exists() or file_path.stat().st_size == 0:
-            print(f"telegram.photo_empty message_id={message.id}")
-            if file_path.exists():
+            # Verify file was downloaded and has content
+            if file_path.exists() and file_path.stat().st_size > 0:
+                print(f"telegram.photo_downloaded message_id={message.id} size={file_path.stat().st_size}")
+                media_paths.append(f"/uploads/{filename}")
+            elif file_path.exists():
                 file_path.unlink()  # Delete empty file
-            return None
 
-        print(f"telegram.photo_downloaded message_id={message.id} size={file_path.stat().st_size}")
+        # Download video
+        if message.video:
+            file_ext = "mp4"
+            filename = f"tg_vid_{message.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+            file_path = uploads_dir / filename
 
-        # Return relative path for database
-        return f"/uploads/{filename}"
+            await client.download_media(message.video, file=str(file_path))
+
+            # Verify file was downloaded and has content
+            if file_path.exists() and file_path.stat().st_size > 0:
+                print(f"telegram.video_downloaded message_id={message.id} size={file_path.stat().st_size}")
+                media_paths.append(f"/uploads/{filename}")
+            elif file_path.exists():
+                file_path.unlink()  # Delete empty file
+
+        # Download document (if it's an image or video)
+        if message.document and message.document.mime_type:
+            mime_type = message.document.mime_type
+            if mime_type.startswith(("image/", "video/")):
+                if mime_type.startswith("image/"):
+                    file_ext = mime_type.split("/")[1] if "/" in mime_type else "jpg"
+                    prefix = "tg_img"
+                else:
+                    file_ext = mime_type.split("/")[1] if "/" in mime_type else "mp4"
+                    prefix = "tg_vid"
+
+                filename = f"{prefix}_{message.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+                file_path = uploads_dir / filename
+
+                await client.download_media(message.document, file=str(file_path))
+
+                if file_path.exists() and file_path.stat().st_size > 0:
+                    print(f"telegram.document_downloaded message_id={message.id} type={mime_type} size={file_path.stat().st_size}")
+                    media_paths.append(f"/uploads/{filename}")
+                elif file_path.exists():
+                    file_path.unlink()
 
     except Exception as e:
-        print(f"telegram.photo_download_error message_id={message.id} error={e}")
-        return None
+        print(f"telegram.media_download_error message_id={message.id} error={e}")
+
+    return media_paths
 
 
 async def parse_message(message: Message, channel_name: str, client: TelegramClient) -> Optional[dict[str, Any]]:
@@ -257,9 +289,8 @@ async def parse_message(message: Message, channel_name: str, client: TelegramCli
     # Extract contacts
     contacts = extract_all_contacts(text)
 
-    # Download photos
-    photo_path = await download_message_photo(client, message)
-    images = [photo_path] if photo_path else []
+    # Download media (photos and videos)
+    media_paths = await download_message_media(client, message)
 
     # Build event data
     event = {
@@ -275,7 +306,7 @@ async def parse_message(message: Message, channel_name: str, client: TelegramCli
         "source_url": f"https://t.me/{channel_name}/{message.id}",
         "channel_name": channel_name,
         "message_id": message.id,
-        "images": images,
+        "media": media_paths,
     }
 
     return event
@@ -295,11 +326,20 @@ async def ingest(session: AsyncSession, limit_days: int = 7) -> int:
     settings = get_settings()
 
     # Get selected account from runtime config
-    from app.db.models import TelegramAccount
+    from app.db.models import TelegramAccount, ParsedMessage
     from sqlalchemy import select
     from telethon.sessions import StringSession
     from app.core import runtime_config as rc
     import uuid
+
+    # Check parser status
+    parser_status = rc.get("tg_parser_status", "enabled")
+    if parser_status == "disabled":
+        print("telegram.parser_disabled: Parser is disabled by admin")
+        return 0
+    elif parser_status == "waiting":
+        print("telegram.parser_waiting: Parser is in waiting mode (maintenance/technical)")
+        return 0
 
     selected_account_id = rc.get("tg_account_id")
     account = None
@@ -378,10 +418,22 @@ async def ingest(session: AsyncSession, limit_days: int = 7) -> int:
                 )
 
                 parsed_count = 0
+                skipped_duplicates = 0
 
                 for message in messages:
                     # Skip old messages
                     if message.date < since_date:
+                        continue
+
+                    # Check if already parsed (duplicate detection)
+                    existing = await session.execute(
+                        select(ParsedMessage).where(
+                            ParsedMessage.channel_username == channel_username,
+                            ParsedMessage.message_id == message.id
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        skipped_duplicates += 1
                         continue
 
                     # Check if it's an event announcement
@@ -428,7 +480,7 @@ async def ingest(session: AsyncSession, limit_days: int = 7) -> int:
                         "source": "parser",
                         "parser_name": f"telegram:{channel_username}",
                         "wants_paid_promotion": False,
-                        "images": event.get("images", []),
+                        "images": event.get("media", []),
                     }
 
                     # Add to parser queue
@@ -436,7 +488,19 @@ async def ingest(session: AsyncSession, limit_days: int = 7) -> int:
                     queued_count += 1
                     parsed_count += 1
 
-                print(f"telegram.channel_done channel={channel_username} parsed={parsed_count}")
+                    # Record that we parsed this message (to avoid duplicates in future)
+                    parsed_record = ParsedMessage(
+                        channel_username=channel_username,
+                        message_id=message.id,
+                        event_created=True,
+                        event_id=None  # Will be set when event is approved
+                    )
+                    session.add(parsed_record)
+
+                # Commit parsed messages records
+                await session.commit()
+
+                print(f"telegram.channel_done channel={channel_username} parsed={parsed_count} skipped_duplicates={skipped_duplicates}")
 
                 # Small delay between channels
                 await asyncio.sleep(1)
