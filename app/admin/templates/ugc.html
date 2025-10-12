@@ -195,6 +195,121 @@
 }
 
 .muted { color: #999; }
+
+/* Mobile Responsive Styles */
+@media (max-width: 1400px) {
+  .ugc-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@media (max-width: 1200px) {
+  .ugc-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 992px) {
+  .ugc-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .ugc-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .ugc-card {
+    border-width: 2px;
+  }
+
+  .photo-carousel {
+    height: 150px;
+  }
+
+  .card-content {
+    padding: 10px;
+  }
+
+  .tg-caption {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .tg-btn {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+
+  .btn-approve, .btn-reject {
+    font-size: 12px;
+    padding: 6px;
+  }
+
+  .user-info {
+    font-size: 10px;
+  }
+
+  .carousel-arrow {
+    padding: 6px 10px;
+    font-size: 16px;
+  }
+
+  /* Filter buttons on mobile */
+  .ugc-filters {
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+
+  .ugc-filters .btn {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 576px) {
+  .ugc-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .photo-carousel {
+    height: 200px;
+  }
+
+  .ugc-card {
+    max-width: 100%;
+  }
+
+  .card-content {
+    padding: 12px;
+  }
+
+  .tg-caption {
+    font-size: 13px;
+  }
+
+  .ugc-actions {
+    flex-direction: column;
+  }
+
+  .btn-approve, .btn-reject {
+    width: 100%;
+  }
+
+  /* Mobile header */
+  .ugc-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px;
+  }
+
+  .ugc-header h2 {
+    font-size: 1.3rem;
+  }
+}
 </style>
 
 <div class="card">
@@ -204,9 +319,9 @@
   </div>
   {% endif %}
 
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+  <div class="ugc-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
     <h2 style="margin:0;">UGC Модерация</h2>
-    <div style="display:flex;gap:8px;">
+    <div class="ugc-filters" style="display:flex;gap:8px;">
       <a href="ugc?queue=all" class="btn" style="background:{{ '#0066cc' if current_queue == 'all' else '#6c757d' }};">Все</a>
       <a href="ugc?queue=free" class="btn" style="background:{{ '#808080' if current_queue == 'free' else '#6c757d' }};">Бесплатные</a>
       <a href="ugc?queue=paid" class="btn" style="background:{{ '#FF0000' if current_queue == 'paid' else '#6c757d' }};">Платные</a>
