@@ -43,6 +43,10 @@
         <label>Загрузить новый аватар (640x640px, PNG/JPG)</label>
         <input type="file" name="avatar_file" accept="image/png,image/jpeg">
         <small class="muted">Рекомендуется квадратное изображение 640x640px</small>
+        <div style="margin-top: 0.5rem; padding: 0.75rem; background: #1a2332; border-left: 3px solid #6ea8fe; border-radius: 4px;">
+          <strong>ℹ️ Важно:</strong> Аватар сохраняется только в админ-панели для справки.<br>
+          Для изменения аватара в Telegram используйте <a href="https://t.me/BotFather" target="_blank" style="color: #6ea8fe;">@BotFather</a> (команда /mybots → выбрать бота → Edit Bot → Edit Botpic).
+        </div>
       </div>
     </div>
 
@@ -168,7 +172,11 @@ document.getElementById('applyBtn').addEventListener('click', async () => {
     const result = await response.json();
 
     if (result.success) {
-      window.showNotification(result.message, 'success');
+      let message = result.message;
+      if (result.details && result.details.length > 0) {
+        message += '\n\n' + result.details.join('\n');
+      }
+      window.showNotification(message, 'success');
     } else {
       window.showNotification(result.error || 'Ошибка применения', 'error');
     }

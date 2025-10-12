@@ -206,23 +206,27 @@ async def bot_settings_apply(
         if settings.bot_name:
             await bot.set_my_name(settings.bot_name)
 
-        # Update profile photo if avatar_url is provided
-        if settings.avatar_url:
-            from pathlib import Path
-            from aiogram.types import FSInputFile
-
-            # Convert URL path to file system path
-            if settings.avatar_url.startswith("/static/uploads/"):
-                avatar_path = Path(__file__).parent / "static" / "uploads" / settings.avatar_url.split("/")[-1]
-                if avatar_path.exists():
-                    photo = FSInputFile(str(avatar_path))
-                    await bot.set_chat_photo(chat_id=bot.id, photo=photo)
+        # Note: Telegram Bot API does not support changing bot profile photo programmatically
+        # Avatar is stored in DB and displayed in admin panel only
+        # To change bot avatar, use @BotFather manually
 
         await bot.session.close()
 
+        messages = []
+        messages.append("✅ Имя бота обновлено")
+        if settings.description:
+            messages.append("✅ Краткое описание обновлено")
+        if settings.about:
+            messages.append("✅ Полное описание обновлено")
+        messages.append(f"✅ Команды обновлены ({len(settings.commands)} шт.)")
+
+        if settings.avatar_url:
+            messages.append("ℹ️ Аватар сохранён в админ-панели (для изменения в Telegram используйте @BotFather)")
+
         return JSONResponse({
             "success": True,
-            "message": "Настройки применены к боту в Telegram"
+            "message": "Настройки применены к боту в Telegram",
+            "details": messages
         })
 
     except Exception as e:
