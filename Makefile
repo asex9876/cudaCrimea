@@ -34,11 +34,18 @@ rebuild: down build up ## Полная пересборка (down + build + up)
 ps: ## Показать статус контейнеров
 	$(COMPOSE) ps
 
-health: ## Проверить health всех сервисов
+health: ## Быстрая проверка здоровья (запуск health-check.sh)
+	@bash scripts/health-check.sh
+
+health-docker: ## Проверить health status Docker контейнеров
 	@echo "Checking health of services..."
 	@$(COMPOSE) ps | grep -E "(healthy|unhealthy)" || echo "Health checks not configured"
-	@echo "\nAPI health:"
-	@curl -f http://localhost:8000/health 2>/dev/null && echo "✓ API is healthy" || echo "✗ API is unhealthy"
+
+diagnose: ## Полная диагностика системы (запуск diagnostics.sh)
+	@bash scripts/diagnostics.sh
+
+collect-logs: ## Собрать все логи в один файл
+	@bash scripts/collect-logs.sh
 
 ##@ Logs
 
