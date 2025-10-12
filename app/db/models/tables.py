@@ -443,7 +443,7 @@ class LLMUsage(Base):
     completion_tokens: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     total_tokens: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     cost_rub: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Cost in rubles
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"), default=dict)
+    meta: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"), default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
     __table_args__ = (
