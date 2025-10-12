@@ -181,17 +181,9 @@
     {% for e in items %}
     <div class="event-card" onclick="toggleCard(this)">
       <div class="card-compact">
-        {% if e.images %}
-          {% set images_array = e.images|fromjson %}
-          {% if images_array and images_array|length > 0 %}
-            <img src="{{ images_array[0] }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-            <div class="placeholder-img" style="display:none;">📸</div>
-          {% elif e.image_url %}
-            <img src="{{ e.image_url }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-            <div class="placeholder-img" style="display:none;">📸</div>
-          {% else %}
-            <div class="placeholder-img">📅</div>
-          {% endif %}
+        {% if e.images and e.images is iterable and e.images|length > 0 %}
+          <img src="{{ e.images[0] }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+          <div class="placeholder-img" style="display:none;">📸</div>
         {% elif e.image_url %}
           <img src="{{ e.image_url }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
           <div class="placeholder-img" style="display:none;">📸</div>
@@ -219,27 +211,19 @@
         </div>
       </div>
       <div class="card-expanded">
-        {% if e.images %}
-          {% set images_array = e.images|fromjson %}
-          {% if images_array and images_array|length > 0 %}
-            <div style="margin-bottom:1rem;">
-              <strong>Фото ({{ images_array|length }} шт.):</strong>
-              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
-                {% for photo_url in images_array %}
-                  <img src="{{ photo_url }}" alt="Фото события" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #1b254b;" />
-                {% endfor %}
-              </div>
+        {% if e.images and e.images is iterable and e.images|length > 0 %}
+          <div style="margin-bottom:1rem;">
+            <strong>Фото ({{ e.images|length }} шт.):</strong>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+              {% for photo_url in e.images %}
+                <img src="{{ photo_url }}" alt="Фото события" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #1b254b;" onerror="this.style.display='none';" />
+              {% endfor %}
             </div>
-          {% elif e.image_url %}
-            <div style="margin-bottom:1rem;">
-              <strong>Фото:</strong><br/>
-              <img src="{{ e.image_url }}" alt="Фото события" style="max-width:200px;height:auto;border-radius:8px;margin-top:0.5rem;" />
-            </div>
-          {% endif %}
+          </div>
         {% elif e.image_url %}
           <div style="margin-bottom:1rem;">
             <strong>Фото:</strong><br/>
-            <img src="{{ e.image_url }}" alt="Фото события" style="max-width:200px;height:auto;border-radius:8px;margin-top:0.5rem;" />
+            <img src="{{ e.image_url }}" alt="Фото события" style="max-width:200px;height:auto;border-radius:8px;margin-top:0.5rem;" onerror="this.style.display='none';" />
           </div>
         {% endif %}
         <p><strong>Описание:</strong> {{ e.description or 'Нет описания' }}</p>
