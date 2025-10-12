@@ -62,6 +62,14 @@ app.post("/telegram-accounts/add")(telegram_routes.telegram_accounts_add)
 app.post("/telegram-accounts/confirm")(telegram_routes.telegram_accounts_confirm)
 app.post("/telegram-accounts/delete")(telegram_routes.telegram_accounts_delete)
 
+# Import LLM routes
+from app.admin import llm_routes
+
+# Register LLM routes
+app.get("/llm", response_class=HTMLResponse)(llm_routes.llm_page)
+app.post("/llm/settings")(llm_routes.llm_settings_save)
+app.post("/llm/test")(llm_routes.llm_test)
+
 
 # ------------------ Helpers ------------------
 

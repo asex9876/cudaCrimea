@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>🤖 LLM / AI Management</h2>
+
+  <!-- Settings Section -->
+  <div class="mt1">
+    <h3>Настройки подключения</h3>
+    <form method="POST" action="/llm/settings">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+
+      <div class="row">
+        <div class="col">
+          <label>API Provider</label>
+          <select name="provider">
+            <option value="ai-mediator" {% if provider == 'ai-mediator' %}selected{% endif %}>AI Mediator</option>
+            <option value="openai" {% if provider == 'openai' %}selected{% endif %}>OpenAI Direct</option>
+          </select>
+        </div>
+
+        <div class="col">
+          <label>API Key</label>
+          <input type="password" name="api_key" value="{{ api_key or '' }}" placeholder="sk-...">
+        </div>
+      </div>
+
+      <div class="row mt1">
+        <div class="col">
+          <label>Base URL</label>
+          <input type="text" name="base_url" value="{{ base_url or 'https://api.ai-mediator.ru/v1' }}">
+        </div>
+      </div>
+
+      <h4 class="mt1">Модели для сервисов</h4>
+      <div class="row">
+        <div class="col">
+          <label>Extractor (извлечение данных)</label>
+          <input type="text" name="model_extractor" value="{{ model_extractor or 'gpt-4o-mini' }}">
+        </div>
+
+        <div class="col">
+          <label>Classifier (классификация)</label>
+          <input type="text" name="model_classifier" value="{{ model_classifier or 'gpt-4o-mini' }}">
+        </div>
+
+        <div class="col">
+          <label>Summarizer (суммаризация)</label>
+          <input type="text" name="model_summarizer" value="{{ model_summarizer or 'gpt-4o-mini' }}">
+        </div>
+      </div>
+
+      <button type="submit" class="btn mt1">💾 Сохранить настройки</button>
+    </form>
+  </div>
+
+  <!-- Statistics Section -->
+  <div class="mt1" style="margin-top: 2rem;">
+    <h3>📊 Статистика использования</h3>
+
+    <!-- Summary Cards -->
+    <div class="row mt1">
+      <div class="col">
+        <div class="card" style="text-align: center;">
+          <h4>Всего токенов</h4>
+          <div style="font-size: 2rem; font-weight: bold;">{{ total_tokens | default(0) | int | format_number }}</div>
+          <small class="muted">за все время</small>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card" style="text-align: center;">
+          <h4>Запросов</h4>
+          <div style="font-size: 2rem; font-weight: bold;">{{ total_requests | default(0) }}</div>
+          <small class="muted">за все время</small>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card" style="text-align: center;">
+          <h4>Стоимость</h4>
+          <div style="font-size: 2rem; font-weight: bold;">{{ total_cost | default(0) | round(2) }} ₽</div>
+          <small class="muted">приблизительно</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Usage by Service -->
+    <h4 class="mt1">Использование по сервисам</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Сервис</th>
+          <th>Запросов</th>
+          <th>Токенов (prompt)</th>
+          <th>Токенов (completion)</th>
+          <th>Всего токенов</th>
+          <th>Средний запрос</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for stat in service_stats %}
+        <tr>
+          <td><strong>{{ stat.service }}</strong></td>
+          <td>{{ stat.count }}</td>
+          <td>{{ stat.prompt_tokens | int | format_number }}</td>
+          <td>{{ stat.completion_tokens | int | format_number }}</td>
+          <td>{{ stat.total_tokens | int | format_number }}</td>
+          <td>{{ (stat.total_tokens / stat.count) | int | format_number }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align: center;" class="muted">Пока нет данных об использовании</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Usage by Model -->
+    <h4 class="mt1">Использование по моделям</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Модель</th>
+          <th>Запросов</th>
+          <th>Токенов</th>
+          <th>Доля</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for stat in model_stats %}
+        <tr>
+          <td><strong>{{ stat.model }}</strong></td>
+          <td>{{ stat.count }}</td>
+          <td>{{ stat.total_tokens | int | format_number }}</td>
+          <td>
+            <div style="background: #1b254b; height: 20px; border-radius: 4px; overflow: hidden;">
+              <div style="background: #6ea8fe; height: 100%; width: {{ (stat.total_tokens / total_tokens * 100) if total_tokens > 0 else 0 }}%;"></div>
+            </div>
+            <small class="muted">{{ ((stat.total_tokens / total_tokens * 100) if total_tokens > 0 else 0) | round(1) }}%</small>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" style="text-align: center;" class="muted">Пока нет данных об использовании</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Recent Usage -->
+    <h4 class="mt1">Последние запросы</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th>Сервис</th>
+          <th>Модель</th>
+          <th>Токены</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for usage in recent_usage %}
+        <tr>
+          <td><small class="muted">{{ usage.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+          <td>{{ usage.service }}</td>
+          <td><small class="muted">{{ usage.model }}</small></td>
+          <td>{{ usage.total_tokens }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" style="text-align: center;" class="muted">Пока нет запросов</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Test Connection -->
+  <div class="mt1" style="margin-top: 2rem;">
+    <h3>🧪 Тест подключения</h3>
+    <form method="POST" action="/llm/test">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit" class="btn">🚀 Протестировать AI</button>
+    </form>
+    {% if test_result %}
+    <div class="card mt1" style="background: {% if test_result.success %}#d4edda{% else %}#f8d7da{% endif %}; border-color: {% if test_result.success %}#28a745{% else %}#dc3545{% endif %};">
+      <strong>{% if test_result.success %}✅ Успешно{% else %}❌ Ошибка{% endif %}</strong>
+      <p>{{ test_result.message }}</p>
+      {% if test_result.tokens %}
+      <small class="muted">Использовано токенов: {{ test_result.tokens }}</small>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// Format numbers with spaces
+document.querySelectorAll('[data-format]').forEach(el => {
+  el.textContent = parseInt(el.textContent).toLocaleString('ru-RU');
+});
+</script>
+{% endblock %}
