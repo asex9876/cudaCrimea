@@ -775,7 +775,10 @@ async def events_delete(event_id: str, request: Request, csrf: str = Form(...), 
     if ev:
         await session.delete(ev)
         await session.commit()
-    return RedirectResponse("/events", status_code=302)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": True, "message": "Событие успешно удалено"})
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": False, "error": "Событие не найдено"}, status_code=404)
 
 
 # -------- Places CRUD --------
@@ -892,7 +895,10 @@ async def places_delete(place_id: str, request: Request, csrf: str = Form(...), 
     if pl:
         await session.delete(pl)
         await session.commit()
-    return RedirectResponse("/places", status_code=302)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": True, "message": "Место успешно удалено"})
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": False, "error": "Место не найдено"}, status_code=404)
 
 
 # -------- Editorial Pins CRUD --------
@@ -976,7 +982,10 @@ async def pins_delete(pin_id: str, request: Request, csrf: str = Form(...), sess
     if pin:
         await session.delete(pin)
         await session.commit()
-    return RedirectResponse("/pins", status_code=302)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": True, "message": "Пин успешно удалён"})
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": False, "error": "Пин не найден"}, status_code=404)
 
 
 # -------- Curated Cards CRUD --------
@@ -1104,7 +1113,10 @@ async def cards_delete(card_id: str, request: Request, csrf: str = Form(...), se
     if card:
         await session.delete(card)
         await session.commit()
-    return RedirectResponse("/cards", status_code=302)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": True, "message": "Карточка успешно удалена"})
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": False, "error": "Карточка не найдена"}, status_code=404)
 
 
 # -------- Demo seed via admin --------
@@ -1372,7 +1384,8 @@ async def ugc_approve(request: Request, raw: str = Form(...), csrf: str = Form(.
     await redis.lrem("ugc:queue", 1, raw)
     await redis.lrem("ugc:queue:paid", 1, raw)
     await redis.lrem("ugc:queue:parser", 1, raw)
-    return RedirectResponse("/ugc?success=published", status_code=302)
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": True, "message": "Событие успешно опубликовано", "event_id": str(ev.id)})
 
 
 @app.post("/ugc/reject")
@@ -1383,7 +1396,8 @@ async def ugc_reject(request: Request, raw: str = Form(...), csrf: str = Form(..
     await redis.lrem("ugc:queue", 1, raw)
     await redis.lrem("ugc:queue:paid", 1, raw)
     await redis.lrem("ugc:queue:parser", 1, raw)
-    return RedirectResponse("/ugc?rejected=1", status_code=302)
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": True, "message": "Событие отклонено"})
 
 
 # -------- Ads CRUD --------
@@ -1472,7 +1486,10 @@ async def advertisers_delete(
     if advertiser:
         await session.delete(advertiser)
         await session.commit()
-    return RedirectResponse("/advertisers", status_code=302)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": True, "message": "Рекламодатель успешно удалён"})
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": False, "error": "Рекламодатель не найден"}, status_code=404)
 
 
 # -------- Placement Requests --------
@@ -1519,12 +1536,14 @@ async def placements_approve(
 
     placement = await session.get(PlacementRequest, uuid.UUID(placement_id))
     if not placement:
-        raise HTTPException(status_code=404)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": False, "error": "Размещение не найдено"}, status_code=404)
 
     placement.status = "approved"
     await session.commit()
 
-    return RedirectResponse(f"/placements/{placement_id}", status_code=302)
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": True, "message": "Размещение подтверждено"})
 
 
 @app.post("/placements/{placement_id}/reject")
@@ -1539,12 +1558,14 @@ async def placements_reject(
 
     placement = await session.get(PlacementRequest, uuid.UUID(placement_id))
     if not placement:
-        raise HTTPException(status_code=404)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": False, "error": "Размещение не найдено"}, status_code=404)
 
     placement.status = "rejected"
     await session.commit()
 
-    return RedirectResponse(f"/placements/{placement_id}", status_code=302)
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": True, "message": "Размещение отклонено"})
 
 
 @app.post("/placements/{placement_id}/mark_paid")
@@ -1558,13 +1579,18 @@ async def placements_mark_paid(
     check_csrf(request, csrf)
 
     placement = await session.get(PlacementRequest, uuid.UUID(placement_id))
-    if not placement or placement.status != "approved":
-        raise HTTPException(status_code=404)
+    if not placement:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": False, "error": "Размещение не найдено"}, status_code=404)
+    if placement.status != "approved":
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": False, "error": "Размещение должно быть сначала подтверждено"}, status_code=400)
 
     placement.status = "paid"
     await session.commit()
 
-    return RedirectResponse(f"/placements/{placement_id}", status_code=302)
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": True, "message": "Размещение помечено как оплаченное"})
 
 
 @app.post("/placements/{placement_id}/activate")
@@ -1578,8 +1604,12 @@ async def placements_activate(
     check_csrf(request, csrf)
 
     placement = await session.get(PlacementRequest, uuid.UUID(placement_id))
-    if not placement or placement.status != "paid":
-        raise HTTPException(status_code=404)
+    if not placement:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": False, "error": "Размещение не найдено"}, status_code=404)
+    if placement.status != "paid":
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": False, "error": "Размещение должно быть сначала оплачено"}, status_code=400)
 
     # Create the actual Event from placement data
     event = Event(
@@ -1609,7 +1639,8 @@ async def placements_activate(
 
     await session.commit()
 
-    return RedirectResponse(f"/placements/{placement_id}", status_code=302)
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": True, "message": "Размещение активировано", "event_id": str(event.id)})
 
 
 # -------- Stats --------
