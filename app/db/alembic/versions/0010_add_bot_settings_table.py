@@ -32,9 +32,9 @@ def upgrade() -> None:
         sa.Column('welcome_message', sa.String(), nullable=False,
                   server_default='Привет! Я помогу найти, куда пойти в Крыму/Севастополе. Выберите город:'),
         sa.Column('commands', JSONB, nullable=False,
-                  server_default='[{"command":"start","description":"Старт / выбор города"},{"command":"menu","description":"Показать меню"}]'::jsonb),
+                  server_default=sa.text("'[{\"command\":\"start\",\"description\":\"Старт / выбор города\"},{\"command\":\"menu\",\"description\":\"Показать меню\"}]'::jsonb")),
         sa.Column('menu_buttons', JSONB, nullable=False,
-                  server_default='[{"text":"🎤 Куда сходить","action":"what_to_do"},{"text":"🍽 Где поесть","action":"food"},{"text":"✍ Предложить событие","action":"ugc"}]'::jsonb),
+                  server_default=sa.text("'[{\"text\":\"🎤 Куда сходить\",\"action\":\"what_to_do\"},{\"text\":\"🍽 Где поесть\",\"action\":\"food\"},{\"text\":\"✍ Предложить событие\",\"action\":\"ugc\"}]'::jsonb")),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
         sa.PrimaryKeyConstraint('id'),
         sa.CheckConstraint('id = 1', name='ck_bot_settings_singleton')
