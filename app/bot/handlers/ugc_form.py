@@ -26,47 +26,27 @@ def _time_prompt_text(error: str | None = None) -> str:
     return base
 
 
-def kb_back(cancel: bool = True, back_cb: str = "form:back") -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text="⬅️ Назад", callback_data=back_cb)]]
+def kb_back(cancel: bool = True, back_cb: str = "form:back", skip_cb: str | None = None) -> InlineKeyboardMarkup:
+    """Create keyboard with Back (and optionally Skip and Cancel) buttons."""
+    rows = []
+    if skip_cb:
+        rows.append([InlineKeyboardButton(text="⏭ Пропустить", callback_data=skip_cb)])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=back_cb)])
     if cancel:
         rows.append([InlineKeyboardButton(text="✖️ Отмена", callback_data="form:cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 async def _ui_update(bot, state: FSMContext, chat_id: int, text: str, kb=None, force_new: bool = False) -> None:
+    """Always send a new message for each step (no editing)."""
     from aiogram.types import ReplyKeyboardMarkup
-    data = await state.get_data()
-    ui_msg_id = data.get("_ui_msg_id")
-    last_kb_was_reply = data.get("_last_kb_was_reply", False)
 
-    # If force_new is True, always send new message
-    if force_new:
-        m = await bot.send_message(chat_id, text, reply_markup=kb)
-        await state.update_data(_ui_msg_id=m.message_id, _ui_chat_id=chat_id, _last_kb_was_reply=False)
-        return
+    # Always send new message on each step
+    m = await bot.send_message(chat_id, text, reply_markup=kb)
 
-    # If keyboard is ReplyKeyboardMarkup, always send new message (can't edit with reply keyboard)
-    if isinstance(kb, ReplyKeyboardMarkup):
-        m = await bot.send_message(chat_id, text, reply_markup=kb)
-        await state.update_data(_ui_msg_id=m.message_id, _ui_chat_id=chat_id, _last_kb_was_reply=True)
-        return
-
-    # If previous message had ReplyKeyboardMarkup, can't edit it - send new message
-    if last_kb_was_reply:
-        m = await bot.send_message(chat_id, text, reply_markup=kb)
-        await state.update_data(_ui_msg_id=m.message_id, _ui_chat_id=chat_id, _last_kb_was_reply=False)
-        return
-
-    if ui_msg_id is None:
-        m = await bot.send_message(chat_id, text, reply_markup=kb)
-        await state.update_data(_ui_msg_id=m.message_id, _ui_chat_id=chat_id, _last_kb_was_reply=False)
-    else:
-        try:
-            await bot.edit_message_text(chat_id=chat_id, message_id=ui_msg_id, text=text, reply_markup=kb)
-        except Exception:
-            # if edit fails (e.g., message deleted, no changes), send new message
-            m = await bot.send_message(chat_id, text, reply_markup=kb)
-            await state.update_data(_ui_msg_id=m.message_id, _ui_chat_id=chat_id, _last_kb_was_reply=False)
+    # Track if using ReplyKeyboardMarkup
+    is_reply_kb = isinstance(kb, ReplyKeyboardMarkup)
+    await state.update_data(_ui_msg_id=m.message_id, _ui_chat_id=chat_id, _last_kb_was_reply=is_reply_kb)
 
 
 @router.message(F.text == "/addevent")
@@ -90,44 +70,69 @@ async def form_title(message: Message, state: FSMContext) -> None:
     stack = list(data.get("_flow_stack", []))
     stack.append("entering_date")
     await state.update_data(_flow_stack=stack)
-    await _ui_update(message.bot, state, message.chat.id, "Шаг 2/10. Дата (ГГГГ-ММ-ДД) или напишите 'пропустить':", kb_back())
+    await _ui_update(message.bot, state, message.chat.id, "Шаг 2/10. Дата (ГГГГ-ММ-ДД):", kb_back(skip_cb="form:skip:date"))
 
 
-@router.message(UGCFormStates.entering_date, F.text)
-async def form_date(message: Message, state: FSMContext) -> None:
-    txt = (message.text or "").strip()
-    if txt.lower() == "пропустить":
-        await state.update_data(date_iso=None)
-    else:
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", txt):
-            await message.answer("Неверный формат. Пример: 2025-10-15. Или напишите 'пропустить'.")
-            return
-        try:
-            event_date = _date.fromisoformat(txt)
-        except Exception:
-            await message.answer("Такая дата недопустима. Введите снова или напишите 'пропустить'.")
-            return
-
-        # Validate date is not in the past
-        from datetime import datetime, timedelta
-        today = datetime.now().date()
-        max_date = today + timedelta(days=180)  # 6 months ~ 180 days
-
-        if event_date < today:
-            await message.answer("❌ Дата не может быть в прошлом. Введите актуальную дату или 'пропустить'.")
-            return
-
-        if event_date > max_date:
-            await message.answer(f"❌ Дата не может быть позднее {max_date.strftime('%Y-%m-%d')} (максимум 6 месяцев вперёд). Введите снова или 'пропустить'.")
-            return
-
-        await state.update_data(date_iso=txt)
+@router.callback_query(UGCFormStates.entering_date, F.data == "form:skip:date")
+async def skip_date(cb: CallbackQuery, state: FSMContext) -> None:
+    """Skip date field."""
+    await state.update_data(date_iso=None)
     await state.set_state(UGCFormStates.entering_time)
     data = await state.get_data()
     stack = list(data.get("_flow_stack", []))
     stack.append("entering_time")
     await state.update_data(_flow_stack=stack)
-    await _ui_update(message.bot, state, message.chat.id, "Шаг 3/10. Время (ЧЧ:ММ) или 'пропустить':", kb_back())
+    chat_id = cb.message.chat.id if cb.message and cb.message.chat else 0
+    await _ui_update(cb.message.bot, state, chat_id, "Шаг 3/10. Время (ЧЧ:ММ):", kb_back(skip_cb="form:skip:time"))
+    await cb.answer("⏭ Дата пропущена")
+
+
+@router.message(UGCFormStates.entering_date, F.text)
+async def form_date(message: Message, state: FSMContext) -> None:
+    txt = (message.text or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", txt):
+        await message.answer("❌ Неверный формат. Пример: 2025-10-15")
+        return
+    try:
+        event_date = _date.fromisoformat(txt)
+    except Exception:
+        await message.answer("❌ Такая дата недопустима. Введите снова.")
+        return
+
+    # Validate date is not in the past
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
+    max_date = today + timedelta(days=180)  # 6 months ~ 180 days
+
+    if event_date < today:
+        await message.answer("❌ Дата не может быть в прошлом. Введите актуальную дату.")
+        return
+
+    if event_date > max_date:
+        await message.answer(f"❌ Дата не может быть позднее {max_date.strftime('%Y-%m-%d')} (максимум 6 месяцев вперёд).")
+        return
+
+    await state.update_data(date_iso=txt)
+    await state.set_state(UGCFormStates.entering_time)
+    data = await state.get_data()
+    stack = list(data.get("_flow_stack", []))
+    stack.append("entering_time")
+    await state.update_data(_flow_stack=stack)
+    await _ui_update(message.bot, state, message.chat.id, "Шаг 3/10. Время (ЧЧ:ММ):", kb_back(skip_cb="form:skip:time"))
+
+
+@router.callback_query(UGCFormStates.entering_time, F.data == "form:skip:time")
+async def skip_time(cb: CallbackQuery, state: FSMContext) -> None:
+    """Skip time field."""
+    await state.update_data(time_24h=None)
+    await state.set_state(UGCFormStates.choosing_city)
+    data = await state.get_data()
+    stack = list(data.get("_flow_stack", []))
+    stack.append("choosing_city")
+    await state.update_data(_flow_stack=stack)
+    chat_id = cb.message.chat.id if cb.message and cb.message.chat else 0
+    await _ui_update(cb.message.bot, state, chat_id, "Шаг 4/10. Выберите город:", cities_kb())
+    await cb.answer("⏭ Время пропущено")
 
 
 @router.message(UGCFormStates.entering_time, F.text)
@@ -136,17 +141,14 @@ async def form_time(message: Message, state: FSMContext) -> None:
     if not chat:
         return
     txt = (message.text or "").strip()
-    if txt.lower() == "пропустить":
-        await state.update_data(time_24h=None)
-    else:
-        if not re.fullmatch(r"\d{2}:\d{2}", txt):
-            await _ui_update(message.bot, state, chat.id, _time_prompt_text("Неверный формат. Пример: 19:00. Или напишите 'пропустить'."), kb_back())
-            return
-        hours, minutes = map(int, txt.split(":"))
-        if not (0 <= hours < 24 and 0 <= minutes < 60):
-            await _ui_update(message.bot, state, chat.id, _time_prompt_text("Время должно быть в диапазоне 00:00–23:59."), kb_back())
-            return
-        await state.update_data(time_24h=txt)
+    if not re.fullmatch(r"\d{2}:\d{2}", txt):
+        await message.answer("❌ Неверный формат. Пример: 19:00")
+        return
+    hours, minutes = map(int, txt.split(":"))
+    if not (0 <= hours < 24 and 0 <= minutes < 60):
+        await message.answer("❌ Время должно быть в диапазоне 00:00–23:59")
+        return
+    await state.update_data(time_24h=txt)
     await state.set_state(UGCFormStates.choosing_city)
     data = await state.get_data()
     stack = list(data.get("_flow_stack", []))
@@ -189,37 +191,59 @@ async def form_address_text(message: Message, state: FSMContext) -> None:
     stack = list(data.get("_flow_stack", []))
     stack.append("entering_price_min")
     await state.update_data(_flow_stack=stack)
-    await _ui_update(message.bot, state, message.chat.id, "Шаг 6/10. Минимальная цена (число) или 'пропустить':", kb_back())
+    await _ui_update(message.bot, state, message.chat.id, "Шаг 6/10. Минимальная цена (число):", kb_back(skip_cb="form:skip:price_min"))
 
 
-@router.message(UGCFormStates.entering_price_min, F.text)
-async def form_price_min(message: Message, state: FSMContext) -> None:
-    txt = (message.text or "").strip().lower()
-    if txt == "пропустить":
-        await state.update_data(price_min=None)
-    else:
-        if not re.fullmatch(r"\d+", txt):
-            await message.answer("Введите число или 'пропустить'.")
-            return
-        await state.update_data(price_min=int(txt))
+@router.callback_query(UGCFormStates.entering_price_min, F.data == "form:skip:price_min")
+async def skip_price_min(cb: CallbackQuery, state: FSMContext) -> None:
+    """Skip price_min field."""
+    await state.update_data(price_min=None)
     await state.set_state(UGCFormStates.entering_price_max)
     data = await state.get_data()
     stack = list(data.get("_flow_stack", []))
     stack.append("entering_price_max")
     await state.update_data(_flow_stack=stack)
-    await _ui_update(message.bot, state, message.chat.id, "Шаг 7/10. Максимальная цена (число) или 'пропустить':", kb_back())
+    chat_id = cb.message.chat.id if cb.message and cb.message.chat else 0
+    await _ui_update(cb.message.bot, state, chat_id, "Шаг 7/10. Максимальная цена (число):", kb_back(skip_cb="form:skip:price_max"))
+    await cb.answer("⏭ Минимальная цена пропущена")
+
+
+@router.message(UGCFormStates.entering_price_min, F.text)
+async def form_price_min(message: Message, state: FSMContext) -> None:
+    txt = (message.text or "").strip()
+    if not re.fullmatch(r"\d+", txt):
+        await message.answer("❌ Введите число")
+        return
+    await state.update_data(price_min=int(txt))
+    await state.set_state(UGCFormStates.entering_price_max)
+    data = await state.get_data()
+    stack = list(data.get("_flow_stack", []))
+    stack.append("entering_price_max")
+    await state.update_data(_flow_stack=stack)
+    await _ui_update(message.bot, state, message.chat.id, "Шаг 7/10. Максимальная цена (число):", kb_back(skip_cb="form:skip:price_max"))
+
+
+@router.callback_query(UGCFormStates.entering_price_max, F.data == "form:skip:price_max")
+async def skip_price_max(cb: CallbackQuery, state: FSMContext) -> None:
+    """Skip price_max field."""
+    await state.update_data(price_max=None)
+    await state.set_state(UGCFormStates.choosing_category)
+    data = await state.get_data()
+    stack = list(data.get("_flow_stack", []))
+    stack.append("choosing_category")
+    await state.update_data(_flow_stack=stack, selected_categories=[])
+    chat_id = cb.message.chat.id if cb.message and cb.message.chat else 0
+    await _ui_update(cb.message.bot, state, chat_id, "Шаг 8/10. Выберите категорию (до 2-х):", interests_kb([]))
+    await cb.answer("⏭ Максимальная цена пропущена")
 
 
 @router.message(UGCFormStates.entering_price_max, F.text)
 async def form_price_max(message: Message, state: FSMContext) -> None:
-    txt = (message.text or "").strip().lower()
-    if txt == "пропустить":
-        await state.update_data(price_max=None)
-    else:
-        if not re.fullmatch(r"\d+", txt):
-            await message.answer("Введите число или 'пропустить'.")
-            return
-        await state.update_data(price_max=int(txt))
+    txt = (message.text or "").strip()
+    if not re.fullmatch(r"\d+", txt):
+        await message.answer("❌ Введите число")
+        return
+    await state.update_data(price_max=int(txt))
     await state.set_state(UGCFormStates.choosing_category)
     data = await state.get_data()
     stack = list(data.get("_flow_stack", []))
@@ -245,7 +269,7 @@ async def form_category(cb: CallbackQuery, state: FSMContext) -> None:
         stack.append("entering_link")
         await state.update_data(_flow_stack=stack)
         chat_id = cb.message.chat.id if cb.message and cb.message.chat else 0
-        await _ui_update(cb.message.bot, state, chat_id, "Шаг 9/10. Ссылка на источник (или 'пропустить'):", kb_back())
+        await _ui_update(cb.message.bot, state, chat_id, "Шаг 9/10. Ссылка на источник:", kb_back(skip_cb="form:skip:link"))
         await cb.answer()
         return
 
@@ -267,11 +291,24 @@ async def form_category(cb: CallbackQuery, state: FSMContext) -> None:
     await _ui_update(cb.message.bot, state, chat_id, "Шаг 8/10. Выберите категорию (до 2-х):", interests_kb(selected))
 
 
+@router.callback_query(UGCFormStates.entering_link, F.data == "form:skip:link")
+async def skip_link(cb: CallbackQuery, state: FSMContext) -> None:
+    """Skip link field."""
+    await state.update_data(source_url="")
+    await state.set_state(UGCFormStates.adding_photos)
+    data = await state.get_data()
+    stack = list(data.get("_flow_stack", []))
+    stack.append("adding_photos")
+    await state.update_data(_flow_stack=stack)
+    chat_id = cb.message.chat.id if cb.message and cb.message.chat else 0
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Готово", callback_data="form:photos_done")],[InlineKeyboardButton(text="⬅️ Назад", callback_data="form:back")],[InlineKeyboardButton(text="✖️ Отмена", callback_data="form:cancel")]])
+    await _ui_update(cb.message.bot, state, chat_id, "Шаг 10/10. Пришлите фото (можно до 10 штук одновременно). Когда закончите, нажмите 'Готово'.", kb)
+    await cb.answer("⏭ Ссылка пропущена")
+
+
 @router.message(UGCFormStates.entering_link, F.text)
 async def form_link(message: Message, state: FSMContext) -> None:
     txt = (message.text or "").strip()
-    if txt.lower() == "пропустить":
-        txt = ""
     await state.update_data(source_url=txt)
     await state.set_state(UGCFormStates.adding_photos)
     data = await state.get_data()
