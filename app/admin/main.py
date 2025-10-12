@@ -69,6 +69,7 @@ from app.admin import llm_routes
 app.get("/llm", response_class=HTMLResponse)(llm_routes.llm_page)
 app.post("/llm/settings")(llm_routes.llm_settings_save)
 app.post("/llm/test")(llm_routes.llm_test)
+app.get("/llm/chart-data")(llm_routes.llm_chart_data)
 
 
 # ------------------ Helpers ------------------

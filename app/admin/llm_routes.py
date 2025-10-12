@@ -212,3 +212,131 @@ async def llm_test(request: Request, csrf: str = Form(...)) -> Any:
         }
 
     return RedirectResponse("/llm", status_code=302)
+
+
+async def llm_chart_data(
+    request: Request,
+    period: str = "7d",
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Get chart data for LLM usage visualization."""
+    require_login(request)
+
+    from fastapi.responses import JSONResponse
+
+    # Calculate date range based on period
+    now = datetime.now()
+    if period == "1d":
+        start_date = now - timedelta(days=1)
+        date_format = "%H:%M"
+    elif period == "7d":
+        start_date = now - timedelta(days=7)
+        date_format = "%d.%m"
+    elif period == "30d":
+        start_date = now - timedelta(days=30)
+        date_format = "%d.%m"
+    elif period == "1y":
+        start_date = now - timedelta(days=365)
+        date_format = "%m.%Y"
+    else:
+        start_date = now - timedelta(days=7)
+        date_format = "%d.%m"
+
+    # Service usage pie chart data
+    service_result = await session.execute(
+        select(
+            LLMUsage.service,
+            func.sum(LLMUsage.total_tokens).label("total_tokens"),
+        )
+        .where(LLMUsage.created_at >= start_date)
+        .group_by(LLMUsage.service)
+        .order_by(func.sum(LLMUsage.total_tokens).desc())
+    )
+    service_data = service_result.all()
+
+    pie_chart = {
+        "labels": [row.service for row in service_data],
+        "data": [int(row.total_tokens or 0) for row in service_data],
+        "backgroundColor": [
+            "#FF6384",
+            "#36A2EB",
+            "#FFCE56",
+            "#4BC0C0",
+            "#9966FF",
+            "#FF9F40",
+        ],
+    }
+
+    # Timeline chart data (tokens over time)
+    if period == "1d":
+        # Hourly buckets
+        time_result = await session.execute(
+            select(
+                func.date_trunc("hour", LLMUsage.created_at).label("time_bucket"),
+                func.sum(LLMUsage.prompt_tokens).label("prompt_tokens"),
+                func.sum(LLMUsage.completion_tokens).label("completion_tokens"),
+            )
+            .where(LLMUsage.created_at >= start_date)
+            .group_by("time_bucket")
+            .order_by("time_bucket")
+        )
+    else:
+        # Daily buckets
+        time_result = await session.execute(
+            select(
+                func.date_trunc("day", LLMUsage.created_at).label("time_bucket"),
+                func.sum(LLMUsage.prompt_tokens).label("prompt_tokens"),
+                func.sum(LLMUsage.completion_tokens).label("completion_tokens"),
+            )
+            .where(LLMUsage.created_at >= start_date)
+            .group_by("time_bucket")
+            .order_by("time_bucket")
+        )
+
+    time_data = time_result.all()
+
+    timeline_chart = {
+        "labels": [row.time_bucket.strftime(date_format) for row in time_data],
+        "datasets": [
+            {
+                "label": "Prompt Tokens",
+                "data": [int(row.prompt_tokens or 0) for row in time_data],
+                "borderColor": "#36A2EB",
+                "backgroundColor": "rgba(54, 162, 235, 0.2)",
+                "tension": 0.4,
+            },
+            {
+                "label": "Completion Tokens",
+                "data": [int(row.completion_tokens or 0) for row in time_data],
+                "borderColor": "#FF6384",
+                "backgroundColor": "rgba(255, 99, 132, 0.2)",
+                "tension": 0.4,
+            },
+        ],
+    }
+
+    # Model usage bar chart
+    model_result = await session.execute(
+        select(
+            LLMUsage.model,
+            func.sum(LLMUsage.total_tokens).label("total_tokens"),
+        )
+        .where(LLMUsage.created_at >= start_date)
+        .group_by(LLMUsage.model)
+        .order_by(func.sum(LLMUsage.total_tokens).desc())
+    )
+    model_data = model_result.all()
+
+    bar_chart = {
+        "labels": [row.model for row in model_data],
+        "data": [int(row.total_tokens or 0) for row in model_data],
+        "backgroundColor": "#6ea8fe",
+    }
+
+    return JSONResponse(
+        {
+            "pie_chart": pie_chart,
+            "timeline_chart": timeline_chart,
+            "bar_chart": bar_chart,
+        }
+    )

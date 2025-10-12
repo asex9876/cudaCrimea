@@ -57,6 +57,39 @@
   <div class="mt1" style="margin-top: 2rem;">
     <h3>📊 Статистика использования</h3>
 
+    <!-- Date Period Filter -->
+    <div style="margin-bottom: 1rem;">
+      <label style="margin-right: 0.5rem;">Период:</label>
+      <select id="period-filter" class="btn" style="width: auto; display: inline-block;">
+        <option value="1d">Сегодня</option>
+        <option value="7d" selected>Неделя</option>
+        <option value="30d">Месяц</option>
+        <option value="1y">Год</option>
+      </select>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mt1">
+      <div class="col">
+        <div class="card">
+          <h4 style="text-align: center; margin-bottom: 1rem;">Распределение по сервисам</h4>
+          <canvas id="pieChart" style="max-height: 300px;"></canvas>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h4 style="text-align: center; margin-bottom: 1rem;">Использование по моделям</h4>
+          <canvas id="barChart" style="max-height: 300px;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline Chart -->
+    <div class="card mt1">
+      <h4 style="text-align: center; margin-bottom: 1rem;">Токены по времени</h4>
+      <canvas id="timelineChart" style="max-height: 350px;"></canvas>
+    </div>
+
     <!-- Summary Cards -->
     <div class="row mt1">
       <div class="col">
@@ -199,5 +232,121 @@
 document.querySelectorAll('[data-format]').forEach(el => {
   el.textContent = parseInt(el.textContent).toLocaleString('ru-RU');
 });
+
+// Charts management
+let pieChart, barChart, timelineChart;
+
+async function loadChartData(period = '7d') {
+  try {
+    const response = await fetch(`/llm/chart-data?period=${period}`);
+    const data = await response.json();
+
+    // Update Pie Chart (Service Distribution)
+    if (pieChart) {
+      pieChart.destroy();
+    }
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    pieChart = new Chart(pieCtx, {
+      type: 'pie',
+      data: {
+        labels: data.pie_chart.labels,
+        datasets: [{
+          data: data.pie_chart.data,
+          backgroundColor: data.pie_chart.backgroundColor,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#e5e9f0' }
+          }
+        }
+      }
+    });
+
+    // Update Bar Chart (Model Usage)
+    if (barChart) {
+      barChart.destroy();
+    }
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    barChart = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: data.bar_chart.labels,
+        datasets: [{
+          label: 'Токены',
+          data: data.bar_chart.data,
+          backgroundColor: data.bar_chart.backgroundColor,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#e5e9f0' },
+            grid: { color: '#1b254b' }
+          },
+          x: {
+            ticks: { color: '#e5e9f0' },
+            grid: { color: '#1b254b' }
+          }
+        }
+      }
+    });
+
+    // Update Timeline Chart
+    if (timelineChart) {
+      timelineChart.destroy();
+    }
+    const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+    timelineChart = new Chart(timelineCtx, {
+      type: 'line',
+      data: {
+        labels: data.timeline_chart.labels,
+        datasets: data.timeline_chart.datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: { color: '#e5e9f0' }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            stacked: false,
+            ticks: { color: '#e5e9f0' },
+            grid: { color: '#1b254b' }
+          },
+          x: {
+            ticks: { color: '#e5e9f0' },
+            grid: { color: '#1b254b' }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Failed to load chart data:', error);
+  }
+}
+
+// Period filter handler
+document.getElementById('period-filter').addEventListener('change', (e) => {
+  loadChartData(e.target.value);
+});
+
+// Initial load
+loadChartData('7d');
 </script>
 {% endblock %}
