@@ -49,6 +49,9 @@ Telegram бот + FastAPI для агрегации и рекомендации 
 - ✅ Статистика по моделям
 - ✅ Тест подключения к AI
 - ✅ Форма настроек (API key, модели)
+- ✅ **Chart.js графики** (круговая, столбчатая, линейная)
+- ✅ **Фильтры по датам** (сегодня, неделя, месяц, год)
+- ✅ **API /llm/chart-data** для динамического обновления графиков
 
 ### 6. Diagnostic Tools
 - ✅ Создан scripts/diagnostics.sh (полная диагностика)
@@ -109,12 +112,12 @@ docker exec cuda_db psql -U postgres -d cudacrimea -c "SELECT * FROM llm_usage L
 ## 🚀 Next Steps / TODO
 
 ### High Priority
-1. **LLM Panel Improvements** (~40K tokens)
-   - [ ] Добавить Chart.js для графиков
-   - [ ] Круговая диаграмма использования по сервисам
-   - [ ] Линейный график токенов по времени
+1. **LLM Panel Improvements** (✅ ~35K tokens использовано)
+   - [✅] Добавить Chart.js для графиков
+   - [✅] Круговая диаграмма использования по сервисам
+   - [✅] Линейный график токенов по времени
+   - [✅] Фильтры по датам (сегодня, неделя, месяц, год)
    - [ ] Таблица тарифов моделей для расчета стоимости
-   - [ ] Фильтры по датам (сегодня, неделя, месяц, год)
    - [ ] Экспорт статистики в CSV/Excel
 
 2. **Parser Configuration** (~30K tokens)
@@ -155,6 +158,23 @@ docker exec cuda_db psql -U postgres -d cudacrimea -c "SELECT * FROM llm_usage L
 
 ---
 
-**Last Updated**: 2025-10-12
-**Session Tokens Used**: ~125K / 200K
+**Last Updated**: 2025-10-12 (Session 2)
+**Session Tokens Used**: ~61K / 200K
 **Status**: ✅ All systems operational
+
+## 📝 Session 2 Summary (2025-10-12)
+### Completed Tasks
+- ✅ Добавлены интерактивные графики Chart.js в LLM админ-панель
+- ✅ Реализована круговая диаграмма распределения токенов по сервисам
+- ✅ Добавлен столбчатый график использования по моделям
+- ✅ Создан линейный график токенов по времени (prompt vs completion)
+- ✅ Реализованы фильтры по периодам (1 день, неделя, месяц, год)
+- ✅ API эндпоинт /llm/chart-data с агрегацией через SQLAlchemy
+- ✅ Интеграция с темной темой админ-панели
+
+### Code Changes
+- `app/admin/templates/base.html` - добавлен Chart.js CDN
+- `app/admin/llm_routes.py` - новый эндпоинт llm_chart_data()
+- `app/admin/main.py` - регистрация роута /llm/chart-data
+- `app/admin/templates/llm.html` - 3 canvas + JavaScript для графиков
+- **Commit**: 23f709b "Add Chart.js visualizations to LLM admin panel"
