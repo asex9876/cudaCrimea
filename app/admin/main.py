@@ -21,6 +21,7 @@ from sqlalchemy import and_, func, select
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 import uuid
 from app.core.config import get_settings
@@ -49,6 +50,20 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app = FastAPI(title=f"{settings.app_name} — Admin")
 app.add_middleware(SessionMiddleware, secret_key=settings.admin_secret)
+
+
+# Auto-login middleware for requests that passed Nginx basic auth
+class NginxAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # If request comes from Nginx reverse proxy (has X-Forwarded-For header)
+        # and doesn't already have a session, auto-create one
+        if request.headers.get("X-Forwarded-For") and not request.session.get("auth"):
+            request.session["auth"] = True
+        response = await call_next(request)
+        return response
+
+
+app.add_middleware(NginxAuthMiddleware)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.include_router(api_v1_router)
