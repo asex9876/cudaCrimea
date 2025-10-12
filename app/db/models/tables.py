@@ -451,3 +451,44 @@ class LLMUsage(Base):
         Index("ix_llm_usage_model_date", "model", "created_at"),
         Index("ix_llm_usage_date", "created_at"),
     )
+
+
+class BotSettings(Base):
+    """Bot configuration (avatar, description, commands, etc)."""
+
+    __tablename__ = "bot_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)  # Singleton
+    bot_name: Mapped[str] = mapped_column(String, server_default=text("'CudaCrimea Bot'"))
+    bot_username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Short description
+    about: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Full about text
+    avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Path to uploaded avatar
+    welcome_message: Mapped[str] = mapped_column(
+        String,
+        server_default=text("'Привет! Я помогу найти, куда пойти в Крыму/Севастополе. Выберите город:'")
+    )
+    commands: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        server_default=text("'[{\"command\":\"start\",\"description\":\"Старт / выбор города\"},{\"command\":\"menu\",\"description\":\"Показать меню\"}]'::jsonb"),
+        default=lambda: [
+            {"command": "start", "description": "Старт / выбор города"},
+            {"command": "menu", "description": "Показать меню"},
+        ]
+    )
+    menu_buttons: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        server_default=text("'[{\"text\":\"🎤 Куда сходить\",\"action\":\"what_to_do\"},{\"text\":\"🍽 Где поесть\",\"action\":\"food\"},{\"text\":\"✍ Предложить событие\",\"action\":\"ugc\"}]'::jsonb"),
+        default=lambda: [
+            {"text": "🎤 Куда сходить", "action": "what_to_do"},
+            {"text": "🍽 Где поесть", "action": "food"},
+            {"text": "✍ Предложить событие", "action": "ugc"},
+        ]
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_bot_settings_singleton"),
+    )

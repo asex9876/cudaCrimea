@@ -71,6 +71,14 @@ app.post("/llm/settings")(llm_routes.llm_settings_save)
 app.post("/llm/test")(llm_routes.llm_test)
 app.get("/llm/chart-data")(llm_routes.llm_chart_data)
 
+# Import Bot settings routes
+from app.admin import bot_routes
+
+# Register Bot settings routes
+app.get("/bot/settings", response_class=HTMLResponse)(bot_routes.bot_settings_page)
+app.post("/bot/settings/save")(bot_routes.bot_settings_save)
+app.post("/bot/settings/apply")(bot_routes.bot_settings_apply)
+
 
 # ------------------ Helpers ------------------
 

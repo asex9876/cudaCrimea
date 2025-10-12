@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>🤖 Настройки бота</h2>
+
+  <form id="botSettingsForm" method="POST" action="/admin/bot/settings/save" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+
+    <!-- Basic Info -->
+    <h3 class="mt1">Основная информация</h3>
+    <div class="row">
+      <div class="col">
+        <label>Название бота</label>
+        <input type="text" name="bot_name" value="{{ settings.bot_name }}" placeholder="CudaCrimea Bot" required>
+      </div>
+      <div class="col">
+        <label>Username бота (только чтение)</label>
+        <input type="text" name="bot_username" value="{{ settings.bot_username or '' }}" placeholder="@cudacrimea_bot" readonly style="opacity: 0.6;">
+      </div>
+    </div>
+
+    <div class="mt1">
+      <label>Краткое описание (до 120 символов)</label>
+      <textarea name="description" rows="2" style="resize: vertical;">{{ settings.description or '' }}</textarea>
+      <small class="muted">Отображается в списке чатов под именем бота</small>
+    </div>
+
+    <div class="mt1">
+      <label>Полное описание (до 512 символов)</label>
+      <textarea name="about" rows="4" style="resize: vertical;">{{ settings.about or '' }}</textarea>
+      <small class="muted">Отображается в профиле бота</small>
+    </div>
+
+    <!-- Avatar -->
+    <h3 class="mt1">Аватар</h3>
+    <div class="row">
+      <div class="col">
+        {% if settings.avatar_url %}
+        <div style="margin-bottom: 1rem;">
+          <img src="{{ settings.avatar_url }}" alt="Bot Avatar" style="max-width: 200px; border-radius: 50%; border: 2px solid #1b254b;">
+        </div>
+        {% endif %}
+        <label>Загрузить новый аватар (640x640px, PNG/JPG)</label>
+        <input type="file" name="avatar_file" accept="image/png,image/jpeg">
+        <small class="muted">Рекомендуется квадратное изображение 640x640px</small>
+      </div>
+    </div>
+
+    <!-- Welcome Message -->
+    <h3 class="mt1">Приветственное сообщение</h3>
+    <div class="mt1">
+      <label>Текст при /start</label>
+      <textarea name="welcome_message" rows="3" style="resize: vertical;" required>{{ settings.welcome_message }}</textarea>
+    </div>
+
+    <!-- Commands -->
+    <h3 class="mt1">Команды бота</h3>
+    <div class="mt1">
+      <label>Команды (JSON массив)</label>
+      <textarea name="commands_json" rows="8" style="font-family: 'Courier New', monospace; resize: vertical;" required>{{ commands_json }}</textarea>
+      <small class="muted">Формат: [{"command": "start", "description": "Описание"}]</small>
+    </div>
+
+    <!-- Menu Buttons -->
+    <h3 class="mt1">Кнопки главного меню</h3>
+    <div class="mt1">
+      <label>Кнопки (JSON массив)</label>
+      <textarea name="menu_buttons_json" rows="8" style="font-family: 'Courier New', monospace; resize: vertical;" required>{{ menu_buttons_json }}</textarea>
+      <small class="muted">Формат: [{"text": "🎤 Куда сходить", "action": "what_to_do"}]</small>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt1" style="display: flex; gap: 1rem;">
+      <button type="submit" class="btn" style="background: #28a745; border-color: #28a745;">💾 Сохранить настройки</button>
+      <button type="button" id="applyBtn" class="btn" style="background: #6ea8fe; border-color: #6ea8fe;">🚀 Применить к боту Telegram</button>
+    </div>
+  </form>
+
+  <!-- Preview Section -->
+  <div class="mt1" style="margin-top: 2rem;">
+    <h3>📱 Предпросмотр</h3>
+    <div class="card" style="background: #0b1226; max-width: 400px;">
+      <h4>Команды бота:</h4>
+      <ul id="commandsPreview" style="list-style: none; padding-left: 0;">
+        <!-- Will be filled by JS -->
+      </ul>
+
+      <h4 class="mt1">Главное меню:</h4>
+      <div id="menuPreview" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <!-- Will be filled by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Preview update
+function updatePreview() {
+  try {
+    const commands = JSON.parse(document.querySelector('[name="commands_json"]').value);
+    const commandsPreview = document.getElementById('commandsPreview');
+    commandsPreview.innerHTML = commands.map(cmd =>
+      `<li style="margin: 0.5rem 0;"><code>/${cmd.command}</code> - ${cmd.description}</li>`
+    ).join('');
+  } catch (e) {
+    document.getElementById('commandsPreview').innerHTML = '<li style="color: #dc3545;">Ошибка в JSON</li>';
+  }
+
+  try {
+    const buttons = JSON.parse(document.querySelector('[name="menu_buttons_json"]').value);
+    const menuPreview = document.getElementById('menuPreview');
+    menuPreview.innerHTML = buttons.map(btn =>
+      `<button class="btn" style="background: #1b254b; width: 100%;">${btn.text}</button>`
+    ).join('');
+  } catch (e) {
+    document.getElementById('menuPreview').innerHTML = '<div style="color: #dc3545;">Ошибка в JSON</div>';
+  }
+}
+
+// Update preview on input
+document.querySelector('[name="commands_json"]').addEventListener('input', updatePreview);
+document.querySelector('[name="menu_buttons_json"]').addEventListener('input', updatePreview);
+
+// Initial preview
+updatePreview();
+
+// Form submission
+document.getElementById('botSettingsForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const formData = new FormData(e.target);
+
+  try {
+    const response = await fetch('/admin/bot/settings/save', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      window.showNotification(result.message || 'Настройки сохранены', 'success');
+    } else {
+      window.showNotification(result.error || 'Ошибка сохранения', 'error');
+    }
+  } catch (error) {
+    window.showNotification('Ошибка сохранения: ' + error.message, 'error');
+  }
+});
+
+// Apply to Telegram button
+document.getElementById('applyBtn').addEventListener('click', async () => {
+  const csrf = document.querySelector('[name="csrf"]').value;
+
+  if (!confirm('Применить настройки к боту в Telegram?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/admin/bot/settings/apply', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `csrf=${encodeURIComponent(csrf)}`
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      window.showNotification(result.message, 'success');
+    } else {
+      window.showNotification(result.error || 'Ошибка применения', 'error');
+    }
+  } catch (error) {
+    window.showNotification('Ошибка: ' + error.message, 'error');
+  }
+});
+</script>
+{% endblock %}

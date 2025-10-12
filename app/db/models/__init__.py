@@ -4,6 +4,7 @@ from .base import Base
 from .tables import (
     AdInteraction,
     Advertiser,
+    BotSettings,
     CuratedCard,
     EditorialPin,
     Event,
@@ -30,4 +31,5 @@ __all__ = [
     "CuratedCard",
     "TelegramAccount",
     "LLMUsage",
+    "BotSettings",
 ]
