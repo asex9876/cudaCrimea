@@ -292,6 +292,7 @@ async def parsers_page(request: Request, session: AsyncSession = Depends(get_ses
         "ingest_tg_minutes": rc.get("ingest_tg_minutes", 45),
         "ingest_tg_days": rc.get("ingest_tg_days", 7),
         "ingest_tg_channels_text": rc.get("ingest_tg_channels_text", "simferopol_afisha\nyalta_afisha\nsevastopol_events\ncrimea_events\nkrym_afisha"),
+        "tg_parser_status": rc.get("tg_parser_status", "enabled"),
         "tg_api_id": rc.get("tg_api_id", settings.tg_api_id or ""),
         "tg_api_hash": rc.get("tg_api_hash", settings.tg_api_hash),
         "tg_api_hash_masked": "••••••••" if rc.get("tg_api_hash") or settings.tg_api_hash else "",
@@ -584,6 +585,34 @@ async def run_all_parsers(
     except Exception as e:
         logger.error("parsers.run.all.error", error=str(e))
         return {"success": False, "error": str(e)}
+
+
+@app.post("/parsers/tg-status")
+async def set_telegram_parser_status(
+    request: Request,
+    csrf: str = Form(...),
+    status: str = Form(...),
+) -> Any:
+    """Set Telegram parser status (enabled/waiting/disabled)."""
+    require_login(request)
+    check_csrf(request, csrf)
+
+    # Validate status
+    if status not in ("enabled", "waiting", "disabled"):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            {"success": False, "error": "Неверный статус. Доступны: enabled, waiting, disabled"},
+            status_code=400
+        )
+
+    # Save status to runtime config
+    rc.set("tg_parser_status", status)
+    rc.save_to_file()
+
+    logger.info("telegram.parser.status.changed", status=status)
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"success": True, "status": status})
 
 
 # -------- Events CRUD --------

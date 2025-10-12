@@ -212,6 +212,29 @@
     .tg-account-card:hover {
         border-color: #4a5568 !important;
     }
+    .tg-status-btn {
+        background: #0f1419;
+        border-color: #2b3a4a !important;
+        color: #999;
+    }
+    .tg-status-btn:hover {
+        border-color: #4a5568 !important;
+    }
+    .tg-status-btn.active[data-status="enabled"] {
+        background: #48bb78;
+        border-color: #48bb78 !important;
+        color: white;
+    }
+    .tg-status-btn.active[data-status="waiting"] {
+        background: #ed8936;
+        border-color: #ed8936 !important;
+        color: white;
+    }
+    .tg-status-btn.active[data-status="disabled"] {
+        background: #f56565;
+        border-color: #f56565 !important;
+        color: white;
+    }
 </style>
 
 <h1>⚙️ Настройка парсеров</h1>
@@ -387,10 +410,33 @@
                     <h3>📱 Telegram Каналы <span class="badge badge-recommended">Уникально</span></h3>
                     <p class="parser-description">Парсинг Telegram каналов с афишами событий в Крыму. Использует Telethon API для чтения публичных каналов.</p>
                 </div>
-                <label class="parser-toggle">
-                    <input type="checkbox" name="tg_enabled" value="on" {% if config.ingest_tg_enabled %}checked{% endif %}>
-                    <span class="toggle-slider"></span>
-                </label>
+            </div>
+
+            <!-- Parser Status Control -->
+            <div class="setting-group" style="background:#1c2733;padding:16px;border-radius:8px;margin-bottom:16px;">
+                <label style="color:#FFD700;margin-bottom:12px;display:block;font-size:14px;font-weight:600;">🔄 Статус парсера</label>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">
+                    <button type="button" class="tg-status-btn" data-status="enabled"
+                            style="padding:10px;border:2px solid;border-radius:6px;cursor:pointer;transition:all 0.2s;font-weight:600;font-size:13px;"
+                            onclick="setParserStatus('enabled')">
+                        ✅ Включен
+                    </button>
+                    <button type="button" class="tg-status-btn" data-status="waiting"
+                            style="padding:10px;border:2px solid;border-radius:6px;cursor:pointer;transition:all 0.2s;font-weight:600;font-size:13px;"
+                            onclick="setParserStatus('waiting')">
+                        ⏳ Ожидание
+                    </button>
+                    <button type="button" class="tg-status-btn" data-status="disabled"
+                            style="padding:10px;border:2px solid;border-radius:6px;cursor:pointer;transition:all 0.2s;font-weight:600;font-size:13px;"
+                            onclick="setParserStatus('disabled')">
+                        ❌ Отключен
+                    </button>
+                </div>
+                <small style="color:#999;display:block;">
+                    <strong>Включен:</strong> работает по расписанию •
+                    <strong>Ожидание:</strong> техническое обслуживание •
+                    <strong>Отключен:</strong> выключен вручную
+                </small>
             </div>
 
             <div class="parser-settings">
@@ -583,6 +629,58 @@
             btn.textContent = originalText;
         }
     }
+
+    // Set Telegram parser status
+    async function setParserStatus(status) {
+        const btn = event.target.closest('.tg-status-btn');
+        const allBtns = document.querySelectorAll('.tg-status-btn');
+        const originalText = btn.textContent;
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Изменение...';
+
+        try {
+            const formData = new FormData();
+            formData.append('csrf', '{{ csrf }}');
+            formData.append('status', status);
+
+            const response = await fetch('parsers/tg-status', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Update UI
+                allBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const statusMessages = {
+                    'enabled': 'Парсер включен и работает по расписанию',
+                    'waiting': 'Парсер в режиме ожидания (техническое обслуживание)',
+                    'disabled': 'Парсер отключен администратором'
+                };
+                showNotification(statusMessages[status], 'success');
+            } else {
+                showNotification('Ошибка изменения статуса: ' + (data.error || 'Неизвестная ошибка'), 'error');
+            }
+        } catch (error) {
+            showNotification('Ошибка сети: ' + error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+
+    // Initialize parser status on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentStatus = '{{ config.get("tg_parser_status", "enabled") }}';
+        const statusBtn = document.querySelector(`.tg-status-btn[data-status="${currentStatus}"]`);
+        if (statusBtn) {
+            statusBtn.classList.add('active');
+        }
+    });
 </script>
 
 {% endblock %}
