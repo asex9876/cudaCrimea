@@ -8,6 +8,7 @@ from .tables import (
     EditorialPin,
     Event,
     EventImage,
+    LLMUsage,
     Place,
     PlacementRequest,
     UGCSubmission,
@@ -28,4 +29,5 @@ __all__ = [
     "EditorialPin",
     "CuratedCard",
     "TelegramAccount",
+    "LLMUsage",
 ]

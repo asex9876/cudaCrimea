@@ -428,3 +428,26 @@ class NotificationSettings(Base):
     __table_args__ = (
         UniqueConstraint("admin_login", name="uq_notification_settings_admin"),
     )
+
+
+class LLMUsage(Base):
+    """LLM/AI token usage tracking for cost analysis."""
+
+    __tablename__ = "llm_usage"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    service: Mapped[str] = mapped_column(String)  # extractor, classifier, summarizer, etc
+    model: Mapped[str] = mapped_column(String)  # gpt-4o-mini, claude-3-7-sonnet, etc
+    provider: Mapped[str] = mapped_column(String, server_default=text("'ai-mediator'"))  # ai-mediator, openai, etc
+    prompt_tokens: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    completion_tokens: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    total_tokens: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    cost_rub: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Cost in rubles
+    metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"), default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+    __table_args__ = (
+        Index("ix_llm_usage_service_date", "service", "created_at"),
+        Index("ix_llm_usage_model_date", "model", "created_at"),
+        Index("ix_llm_usage_date", "created_at"),
+    )
