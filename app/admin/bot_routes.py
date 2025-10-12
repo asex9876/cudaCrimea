@@ -207,8 +207,16 @@ async def bot_settings_apply(
             await bot.set_my_name(settings.bot_name)
 
         # Update profile photo if avatar_url is provided
-        # Note: This requires the avatar to be accessible via URL or file path
-        # For now, we'll skip this as it needs more complex handling
+        if settings.avatar_url:
+            from pathlib import Path
+            from aiogram.types import FSInputFile
+
+            # Convert URL path to file system path
+            if settings.avatar_url.startswith("/static/uploads/"):
+                avatar_path = Path(__file__).parent / "static" / "uploads" / settings.avatar_url.split("/")[-1]
+                if avatar_path.exists():
+                    photo = FSInputFile(str(avatar_path))
+                    await bot.set_chat_photo(chat_id=bot.id, photo=photo)
 
         await bot.session.close()
 
