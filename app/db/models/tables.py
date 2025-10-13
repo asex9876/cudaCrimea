@@ -73,7 +73,7 @@ class Event(Base):
     # Content
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Legacy: first photo
-    images: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # JSON array of photo URLs
+    images: Mapped[Optional[list[str]]] = mapped_column(JSONB, nullable=True)  # Array of photo URLs
 
     # Source
     source: Mapped[str] = mapped_column(String)  # 'afisha_goroda', 'ugc', 'manual', 'advertiser'
