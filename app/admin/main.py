@@ -1396,9 +1396,9 @@ async def ugc_approve(request: Request, raw: str = Form(...), csrf: str = Form(.
     if final_img:
         ev.image_url = final_img
 
-    # Save images JSON array for admin panel display
+    # Save images JSON array for admin panel display (JSONB auto-serializes, don't use json.dumps!)
     if images and isinstance(images, list) and images:
-        ev.images = json.dumps(images)
+        ev.images = images
 
     # Save gallery in separate table
     from app.db.models import EventImage
