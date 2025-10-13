@@ -43,6 +43,9 @@ settings = get_settings()
 setup_logging(settings.log_level)
 logger = structlog.get_logger(module="admin")
 
+# Load runtime configuration from file
+rc.load_from_file()
+
 # Ensure uploads directory exists
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
