@@ -19,38 +19,8 @@ from app.core import runtime_config as rc
 logger = structlog.get_logger(module="admin.telegram_channels")
 
 
-async def telegram_channels_page(request: Request, session: AsyncSession = Depends(get_session)) -> Any:
-    """Display Telegram channels management page."""
-    from app.admin.main import require_login, ensure_csrf, templates
-
-    require_login(request)
-    csrf = ensure_csrf(request)
-
-    # Get all channels with statistics
-    channels = (await session.execute(
-        select(TelegramChannel).order_by(TelegramChannel.added_at.desc())
-    )).scalars().all()
-
-    # Get active Telegram accounts
-    tg_accounts = (await session.execute(
-        select(TelegramAccount)
-        .where(TelegramAccount.status == "active")
-        .order_by(TelegramAccount.created_at.desc())
-    )).scalars().all()
-
-    # Get selected account ID from config
-    selected_tg_account_id = rc.get("tg_account_id")
-
-    return templates.TemplateResponse(
-        "telegram_channels.html",
-        {
-            "request": request,
-            "csrf": csrf,
-            "channels": channels,
-            "tg_accounts": tg_accounts,
-            "selected_tg_account_id": selected_tg_account_id,
-        }
-    )
+# Note: UI is now integrated into /parsers page
+# This file only contains API endpoints for channel management
 
 
 async def verify_telegram_channel(
