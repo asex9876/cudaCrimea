@@ -351,6 +351,11 @@ async def parsers_page(request: Request, session: AsyncSession = Depends(get_ses
     # Get selected account ID from config
     selected_tg_account_id = rc.get("tg_account_id")
 
+    # Get Telegram channels from database
+    channels = (await session.execute(
+        select(TelegramChannel).order_by(TelegramChannel.added_at.desc())
+    )).scalars().all()
+
     return templates.TemplateResponse(
         "parsers.html",
         {
@@ -360,6 +365,7 @@ async def parsers_page(request: Request, session: AsyncSession = Depends(get_ses
             "stats": stats,
             "tg_accounts": tg_accounts,
             "selected_tg_account_id": selected_tg_account_id,
+            "channels": channels,
         }
     )
 

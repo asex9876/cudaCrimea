@@ -628,15 +628,123 @@
                     <small style="color:#999;display:block;margin-top:4px;">Сколько дней назад искать сообщения при каждом запуске</small>
                 </div>
 
-                <div class="setting-group">
-                    <label>Каналы для мониторинга (по одному в строке)</label>
-                    <textarea name="tg_channels" rows="6" style="width:100%;padding:8px;border-radius:6px;border:1px solid #2b3a4a;background:#0f1419;color:#e5e9f0;font-family:monospace;font-size:13px;" placeholder="simferopol_afisha&#10;yalta_afisha&#10;sevastopol_events&#10;crimea_events">{{ config.get('ingest_tg_channels_text', 'simferopol_afisha\nyalta_afisha\nsevastopol_events\ncrimea_events\nkrym_afisha') }}</textarea>
-                    <small style="color:#999;display:block;margin-top:4px;">Username канала без @. Пример: simferopol_afisha</small>
+                <!-- Channel Management Section -->
+                <div class="setting-group" style="background:#1c2733;padding:16px;border-radius:8px;margin-top:16px;">
+                    <label style="color:#FFD700;margin-bottom:12px;display:block;font-size:14px;font-weight:600;">📡 Управление каналами</label>
+
+                    <!-- Add Channel Form -->
+                    <div style="margin-bottom:16px;">
+                        <form id="verifyChannelForm" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+                            <input type="hidden" name="csrf" value="{{ csrf }}">
+                            <div style="flex:1;min-width:200px;position:relative;">
+                                <input
+                                    type="text"
+                                    id="channelUrl"
+                                    name="url"
+                                    placeholder="@username или https://t.me/channel"
+                                    style="width:100%;padding:8px 35px 8px 10px;border:2px solid #2b3a4a;border-radius:6px;background:#0f1419;color:#e5e9f0;font-size:13px;"
+                                    {% if not tg_accounts %}disabled{% endif %}
+                                >
+                                <span id="verificationIndicator" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:16px;display:none;">⌛</span>
+                            </div>
+                            <button type="submit" id="verifyBtn" class="btn-run" style="padding:8px 16px;flex-shrink:0;white-space:nowrap;font-size:13px;" {% if not tg_accounts %}disabled{% endif %}>
+                                🔍 Проверить
+                            </button>
+                        </form>
+
+                        <!-- Channel Info Display -->
+                        <div id="channelInfo" style="display:none;margin-top:12px;padding:12px;background:#0f1419;border-radius:6px;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                                <span style="color:#999;">Название:</span>
+                                <span id="infoTitle" style="font-weight:600;">-</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                                <span style="color:#999;">Username:</span>
+                                <span id="infoUsername">-</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+                                <span style="color:#999;">ID:</span>
+                                <span id="infoChannelId">-</span>
+                            </div>
+
+                            <form id="addChannelForm" style="margin:0;">
+                                <input type="hidden" name="csrf" value="{{ csrf }}">
+                                <input type="hidden" name="username" id="addUsername">
+                                <input type="hidden" name="title" id="addTitle">
+                                <input type="hidden" name="channel_id" id="addChannelId">
+                                <input type="hidden" name="url" id="addUrl">
+
+                                <button type="submit" class="btn-run" style="width:100%;padding:8px;font-size:13px;">
+                                    ✅ Добавить канал
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Channels List -->
+                    <div id="channelsList">
+                        {% if channels %}
+                        <div style="max-height:300px;overflow-y:auto;">
+                            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                                <thead style="position:sticky;top:0;background:#1c2733;z-index:1;">
+                                    <tr style="border-bottom:1px solid #2b3a4a;">
+                                        <th style="padding:8px;text-align:left;color:#FFD700;">Канал</th>
+                                        <th style="padding:8px;text-align:center;color:#FFD700;">Добавлен</th>
+                                        <th style="padding:8px;text-align:center;color:#FFD700;">Просмотрено</th>
+                                        <th style="padding:8px;text-align:center;color:#FFD700;">Спарсено</th>
+                                        <th style="padding:8px;text-align:center;color:#FFD700;">Опубликовано</th>
+                                        <th style="padding:8px;text-align:center;color:#FFD700;">%</th>
+                                        <th style="padding:8px;text-align:center;color:#FFD700;">Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="channelsTableBody">
+                                    {% for channel in channels %}
+                                    <tr data-channel-id="{{ channel.id }}" style="border-top:1px solid #2b3a4a;">
+                                        <td style="padding:8px;">
+                                            <div style="font-weight:600;margin-bottom:2px;">{{ channel.title or channel.username }}</div>
+                                            <div style="font-size:11px;color:#999;">
+                                                <a href="{{ channel.url or 'https://t.me/' + channel.username }}" target="_blank" style="color:var(--accent);text-decoration:none;">@{{ channel.username }}</a>
+                                            </div>
+                                        </td>
+                                        <td style="padding:8px;text-align:center;font-size:11px;color:#999;">
+                                            {{ channel.added_at.strftime('%d.%m') if channel.added_at else '-' }}
+                                        </td>
+                                        <td style="padding:8px;text-align:center;font-weight:600;">{{ channel.total_messages_seen }}</td>
+                                        <td style="padding:8px;text-align:center;font-weight:600;">{{ channel.total_parsed }}</td>
+                                        <td style="padding:8px;text-align:center;font-weight:600;">{{ channel.total_published }}</td>
+                                        <td style="padding:8px;text-align:center;">
+                                            {% set percentage = (channel.total_parsed / channel.total_messages_seen * 100) if channel.total_messages_seen > 0 else 0 %}
+                                            <div style="font-weight:600;color:{% if percentage > 50 %}#48bb78{% elif percentage > 20 %}#ed8936{% else %}#f56565{% endif %};">
+                                                {{ "%.1f"|format(percentage) }}%
+                                            </div>
+                                        </td>
+                                        <td style="padding:8px;text-align:center;">
+                                            <form class="ajax-form" method="post" action="/admin/telegram-channels/delete" style="margin:0;">
+                                                <input type="hidden" name="csrf" value="{{ csrf }}">
+                                                <input type="hidden" name="channel_id" value="{{ channel.id }}">
+                                                <button type="submit" onclick="return confirm('Удалить {{ channel.username }}?')" style="background:#f56565;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">
+                                                    🗑️
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div style="text-align:center;padding:20px;color:#999;">
+                            <div style="font-size:32px;margin-bottom:8px;">📭</div>
+                            <div style="font-size:13px;">Нет добавленных каналов</div>
+                            <div style="font-size:11px;margin-top:4px;">Добавьте первый канал используя форму выше</div>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 
             <div class="parser-actions">
-                <button type="button" class="btn-run" onclick="runParser('tg')">▶️ Запустить</button>
+                <button type="button" class="btn-run" onclick="runParser('tg')">▶️ Запустить парсер</button>
             </div>
         </div>
 
@@ -806,7 +914,162 @@
         if (statusBtn) {
             statusBtn.classList.add('active');
         }
+
+        // Initialize channel management
+        initChannelManagement();
     });
+
+    // Channel Management Functions
+    function initChannelManagement() {
+        const verifyForm = document.getElementById('verifyChannelForm');
+        const channelUrlInput = document.getElementById('channelUrl');
+        const verificationIndicator = document.getElementById('verificationIndicator');
+        const channelInfo = document.getElementById('channelInfo');
+        const addChannelForm = document.getElementById('addChannelForm');
+
+        if (!verifyForm) return;
+
+        let verifiedChannelData = null;
+
+        // Handle verification form submit
+        verifyForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const url = channelUrlInput.value.trim();
+            if (!url) {
+                window.showNotification('Введите ссылку на канал', 'error');
+                return;
+            }
+
+            // Show checking indicator
+            verificationIndicator.style.display = 'block';
+            verificationIndicator.className = 'checking';
+            verificationIndicator.textContent = '⌛';
+            channelInfo.style.display = 'none';
+
+            try {
+                const formData = new FormData(verifyForm);
+                const response = await fetch('/admin/telegram-channels/verify', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show success indicator
+                    verificationIndicator.textContent = '✓';
+                    verificationIndicator.style.color = '#48bb78';
+
+                    // Store verified data
+                    verifiedChannelData = data;
+
+                    // Display channel info
+                    document.getElementById('infoTitle').textContent = data.title;
+                    document.getElementById('infoUsername').textContent = '@' + data.username;
+                    document.getElementById('infoChannelId').textContent = data.channel_id;
+
+                    // Fill hidden form fields
+                    document.getElementById('addUsername').value = data.username;
+                    document.getElementById('addTitle').value = data.title;
+                    document.getElementById('addChannelId').value = data.channel_id;
+                    document.getElementById('addUrl').value = data.url;
+
+                    // Show channel info section
+                    channelInfo.style.display = 'block';
+
+                    window.showNotification('Канал найден и проверен!', 'success');
+                } else {
+                    // Show error indicator
+                    verificationIndicator.textContent = '✗';
+                    verificationIndicator.style.color = '#f56565';
+
+                    window.showNotification(data.error || 'Ошибка проверки канала', 'error');
+                }
+            } catch (error) {
+                verificationIndicator.textContent = '✗';
+                verificationIndicator.style.color = '#f56565';
+                window.showNotification('Ошибка соединения: ' + error.message, 'error');
+            }
+        });
+
+        // Handle add channel form submit
+        addChannelForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            try {
+                const formData = new FormData(addChannelForm);
+                const response = await fetch('/admin/telegram-channels/add', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.showNotification(data.message || 'Канал добавлен!', 'success');
+
+                    // Reset forms
+                    verifyForm.reset();
+                    channelInfo.style.display = 'none';
+                    verificationIndicator.style.display = 'none';
+                    verifiedChannelData = null;
+
+                    // Reload page to show new channel
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    window.showNotification(data.error || 'Ошибка добавления канала', 'error');
+                }
+            } catch (error) {
+                window.showNotification('Ошибка соединения: ' + error.message, 'error');
+            }
+        });
+
+        // Clear indicator when input changes
+        channelUrlInput.addEventListener('input', function() {
+            verificationIndicator.style.display = 'none';
+            channelInfo.style.display = 'none';
+            verifiedChannelData = null;
+        });
+
+        // Handle delete channel buttons (using AJAX forms handler)
+        document.querySelectorAll('form.ajax-form').forEach(form => {
+            form.addEventListener('submit', async function(e) {
+                const action = form.getAttribute('action');
+                if (action && action.includes('telegram-channels/delete')) {
+                    e.preventDefault();
+
+                    const formData = new FormData(form);
+                    try {
+                        const response = await fetch(action, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            window.showNotification(data.message || 'Канал удалён!', 'success');
+
+                            // Remove row from table
+                            const row = form.closest('tr');
+                            if (row) {
+                                row.style.transition = 'opacity 0.3s';
+                                row.style.opacity = '0';
+                                setTimeout(() => row.remove(), 300);
+                            }
+                        } else {
+                            window.showNotification(data.error || 'Ошибка удаления канала', 'error');
+                        }
+                    } catch (error) {
+                        window.showNotification('Ошибка соединения: ' + error.message, 'error');
+                    }
+                }
+            });
+        });
+    }
 </script>
 
 {% endblock %}
