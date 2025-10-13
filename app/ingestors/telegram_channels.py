@@ -392,12 +392,25 @@ async def ingest(session: AsyncSession, limit_days: int = 7) -> int:
         # Calculate date limit (timezone-aware)
         since_date = datetime.now(timezone.utc) - timedelta(days=limit_days)
 
-        # Get channels from runtime config or use defaults
-        channels = rc.get("ingest_tg_channels", CRIMEA_CHANNELS)
-        if not channels:
-            channels = CRIMEA_CHANNELS
+        # Get channels from database (TelegramChannel table)
+        from app.db.models import TelegramChannel
 
+        channel_records = (await session.execute(
+            select(TelegramChannel)
+            .where(TelegramChannel.status == "active")
+            .where(TelegramChannel.is_verified == True)
+        )).scalars().all()
+
+        if not channel_records:
+            print("telegram.no_channels: No active channels configured")
+            print("Add channels in admin panel: /admin/telegram-channels")
+            return 0
+
+        channels = [ch.username for ch in channel_records]
         print(f"telegram.channels count={len(channels)} channels={channels}")
+
+        # Create a dictionary to quickly lookup channel records
+        channel_record_map = {ch.username: ch for ch in channel_records}
 
         # Fetch messages from each channel
         for channel_username in channels:
@@ -419,11 +432,14 @@ async def ingest(session: AsyncSession, limit_days: int = 7) -> int:
 
                 parsed_count = 0
                 skipped_duplicates = 0
+                messages_seen = 0
 
                 for message in messages:
                     # Skip old messages
                     if message.date < since_date:
                         continue
+
+                    messages_seen += 1
 
                     # Check if already parsed (duplicate detection)
                     existing = await session.execute(
@@ -497,10 +513,18 @@ async def ingest(session: AsyncSession, limit_days: int = 7) -> int:
                     )
                     session.add(parsed_record)
 
-                # Commit parsed messages records
+                # Update channel statistics
+                channel_record = channel_record_map.get(channel_username)
+                if channel_record:
+                    channel_record.total_messages_seen += messages_seen
+                    channel_record.total_parsed += parsed_count
+                    channel_record.last_check_at = datetime.now(timezone.utc)
+                    session.add(channel_record)
+
+                # Commit parsed messages records and stats updates
                 await session.commit()
 
-                print(f"telegram.channel_done channel={channel_username} parsed={parsed_count} skipped_duplicates={skipped_duplicates}")
+                print(f"telegram.channel_done channel={channel_username} parsed={parsed_count} seen={messages_seen} skipped_duplicates={skipped_duplicates}")
 
                 # Small delay between channels
                 await asyncio.sleep(1)
