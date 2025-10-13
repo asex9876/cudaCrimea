@@ -19,6 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.core.config import get_settings
 from app.db.models.base import Base
+# Import all models to ensure they are registered with Base.metadata
+from app.db.models import *  # noqa: F401, F403
 
 
 # This is the Alembic Config object, which provides access to the values within
