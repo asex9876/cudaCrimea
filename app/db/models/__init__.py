@@ -13,6 +13,7 @@ from .tables import (
     ParsedMessage,
     Place,
     PlacementRequest,
+    TelegramChannel,
     UGCSubmission,
     User,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "EditorialPin",
     "CuratedCard",
     "TelegramAccount",
+    "TelegramChannel",
     "LLMUsage",
     "BotSettings",
     "ParsedMessage",

@@ -513,3 +513,35 @@ class ParsedMessage(Base):
         Index("ix_parsed_messages_channel", "channel_username"),
         Index("ix_parsed_messages_parsed_at", "parsed_at"),
     )
+
+
+class TelegramChannel(Base):
+    """Telegram channels/groups/chats for parsing with statistics."""
+
+    __tablename__ = "telegram_channels"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    username: Mapped[str] = mapped_column(String)  # Channel username (without @)
+    title: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Channel title
+    channel_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Telegram channel ID
+    url: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Full URL
+    status: Mapped[str] = mapped_column(String, server_default=text("'active'"))  # 'active', 'paused', 'invalid', 'error'
+    is_verified: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))  # Is channel accessible
+    last_check_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Last error message
+
+    # Statistics
+    total_messages_seen: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # Total messages in channel since we started tracking
+    total_parsed: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # How many we parsed
+    total_published: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # How many were published as events
+
+    # Metadata
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    added_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Admin who added it
+    notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Optional notes
+
+    __table_args__ = (
+        UniqueConstraint("username", name="uq_telegram_channels_username"),
+        CheckConstraint("status IN ('active','paused','invalid','error')", name="ck_telegram_channels_status"),
+        Index("ix_telegram_channels_status", "status"),
+    )
