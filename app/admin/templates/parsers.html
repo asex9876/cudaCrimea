@@ -634,8 +634,8 @@
 
                     <!-- Add Channel Form -->
                     <div style="margin-bottom:16px;">
-                        <form id="verifyChannelForm" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
-                            <input type="hidden" name="csrf" value="{{ csrf }}">
+                        <div id="verifyChannelForm" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+                            <input type="hidden" id="verifyCsrf" name="csrf" value="{{ csrf }}">
                             <div style="flex:1;min-width:200px;position:relative;">
                                 <input
                                     type="text"
@@ -647,10 +647,10 @@
                                 >
                                 <span id="verificationIndicator" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:16px;display:none;">⌛</span>
                             </div>
-                            <button type="submit" id="verifyBtn" class="btn-run" style="padding:8px 16px;flex-shrink:0;white-space:nowrap;font-size:13px;" {% if not tg_accounts %}disabled{% endif %}>
+                            <button type="button" id="verifyBtn" class="btn-run" style="padding:8px 16px;flex-shrink:0;white-space:nowrap;font-size:13px;" {% if not tg_accounts %}disabled{% endif %}>
                                 🔍 Проверить
                             </button>
-                        </form>
+                        </div>
 
                         <!-- Channel Info Display -->
                         <div id="channelInfo" style="display:none;margin-top:12px;padding:12px;background:#0f1419;border-radius:6px;">
@@ -667,17 +667,17 @@
                                 <span id="infoChannelId">-</span>
                             </div>
 
-                            <form id="addChannelForm" style="margin:0;">
-                                <input type="hidden" name="csrf" value="{{ csrf }}">
+                            <div id="addChannelForm" style="margin:0;">
+                                <input type="hidden" id="addCsrf" name="csrf" value="{{ csrf }}">
                                 <input type="hidden" name="username" id="addUsername">
                                 <input type="hidden" name="title" id="addTitle">
                                 <input type="hidden" name="channel_id" id="addChannelId">
                                 <input type="hidden" name="url" id="addUrl">
 
-                                <button type="submit" class="btn-run" style="width:100%;padding:8px;font-size:13px;">
+                                <button type="button" id="addChannelBtn" class="btn-run" style="width:100%;padding:8px;font-size:13px;">
                                     ✅ Добавить канал
                                 </button>
-                            </form>
+                            </div>
                         </div>
                     </div>
 
@@ -921,18 +921,19 @@
 
     // Channel Management Functions
     function initChannelManagement() {
-        const verifyForm = document.getElementById('verifyChannelForm');
+        const verifyBtn = document.getElementById('verifyBtn');
         const channelUrlInput = document.getElementById('channelUrl');
         const verificationIndicator = document.getElementById('verificationIndicator');
         const channelInfo = document.getElementById('channelInfo');
-        const addChannelForm = document.getElementById('addChannelForm');
+        const addChannelBtn = document.getElementById('addChannelBtn');
+        const verifyCsrf = document.getElementById('verifyCsrf');
 
-        if (!verifyForm) return;
+        if (!verifyBtn) return;
 
         let verifiedChannelData = null;
 
-        // Handle verification form submit
-        verifyForm.addEventListener('submit', async function(e) {
+        // Handle verification button click
+        verifyBtn.addEventListener('click', async function(e) {
             e.preventDefault();
 
             const url = channelUrlInput.value.trim();
@@ -948,7 +949,10 @@
             channelInfo.style.display = 'none';
 
             try {
-                const formData = new FormData(verifyForm);
+                const formData = new FormData();
+                formData.append('csrf', verifyCsrf.value);
+                formData.append('url', url);
+
                 const response = await fetch('/admin/telegram-channels/verify', {
                     method: 'POST',
                     body: formData
@@ -993,12 +997,18 @@
             }
         });
 
-        // Handle add channel form submit
-        addChannelForm.addEventListener('submit', async function(e) {
+        // Handle add channel button click
+        addChannelBtn.addEventListener('click', async function(e) {
             e.preventDefault();
 
             try {
-                const formData = new FormData(addChannelForm);
+                const formData = new FormData();
+                formData.append('csrf', document.getElementById('addCsrf').value);
+                formData.append('username', document.getElementById('addUsername').value);
+                formData.append('title', document.getElementById('addTitle').value);
+                formData.append('channel_id', document.getElementById('addChannelId').value);
+                formData.append('url', document.getElementById('addUrl').value);
+
                 const response = await fetch('/admin/telegram-channels/add', {
                     method: 'POST',
                     body: formData
@@ -1009,8 +1019,8 @@
                 if (data.success) {
                     window.showNotification(data.message || 'Канал добавлен!', 'success');
 
-                    // Reset forms
-                    verifyForm.reset();
+                    // Reset form
+                    channelUrlInput.value = '';
                     channelInfo.style.display = 'none';
                     verificationIndicator.style.display = 'none';
                     verifiedChannelData = null;
