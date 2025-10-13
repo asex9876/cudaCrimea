@@ -345,6 +345,8 @@
             {% set img_url = img %}
           {% elif img.startswith('/static/') %}
             {% set img_url = '/admin' + img %}
+          {% elif img.startswith('/uploads/') %}
+            {% set img_url = '/admin/static' + img %}
           {% else %}
             {% set img_url = img %}
           {% endif %}
