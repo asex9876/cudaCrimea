@@ -51,9 +51,14 @@ class EventDraft(BaseModel):
     def _validate_date(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
+        # Accept both YYYY-MM-DD and ISO 8601 with time (extract date part)
         if re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
             return v
-        raise ValueError("date_iso must be YYYY-MM-DD")
+        # If it's ISO 8601 with time component, extract date
+        match = re.match(r"(\d{4}-\d{2}-\d{2})T", v)
+        if match:
+            return match.group(1)
+        raise ValueError("date_iso must be YYYY-MM-DD or ISO 8601 datetime")
 
     @field_validator("time_24h")
     @classmethod
