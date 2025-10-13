@@ -29,7 +29,7 @@ from app.core.llm.extractor import extract_event_fields
 from app.core import runtime_config as rc
 from app.db.dao.events import upsert_event
 from app.bot.utils.render import render_event_card
-from app.db.models import Event, Place, Advertiser, PlacementRequest, UGCSubmission, AdInteraction, EditorialPin, CuratedCard, TelegramAccount
+from app.db.models import Event, Place, Advertiser, PlacementRequest, UGCSubmission, AdInteraction, EditorialPin, CuratedCard, TelegramAccount, TelegramChannel
 from app.db.session import get_session, get_sessionmaker
 from app.admin.api_v1 import router as api_v1_router
 
@@ -78,6 +78,16 @@ from app.admin import bot_routes
 app.get("/bot/settings", response_class=HTMLResponse)(bot_routes.bot_settings_page)
 app.post("/bot/settings/save")(bot_routes.bot_settings_save)
 app.post("/bot/settings/apply")(bot_routes.bot_settings_apply)
+
+# Import Telegram channel management routes
+from app.admin import telegram_channel_routes
+
+# Register Telegram channel management routes
+app.get("/telegram-channels", response_class=HTMLResponse)(telegram_channel_routes.telegram_channels_page)
+app.post("/telegram-channels/verify")(telegram_channel_routes.verify_telegram_channel)
+app.post("/telegram-channels/add")(telegram_channel_routes.add_telegram_channel)
+app.post("/telegram-channels/delete")(telegram_channel_routes.delete_telegram_channel)
+app.get("/telegram-channels/list")(telegram_channel_routes.list_telegram_channels)
 
 
 # ------------------ Helpers ------------------
