@@ -16,14 +16,23 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Recreate events table with correct column order
-    # Step 1: Rename old table
-    op.execute("ALTER TABLE events RENAME TO events_old")
+    # Drop and recreate events table with correct column order (table is empty, safe to drop)
 
-    # Step 2: Create new table with correct column order
+    # Step 1: Drop all foreign keys pointing to events table
+    op.execute("ALTER TABLE event_images DROP CONSTRAINT IF EXISTS event_images_event_id_fkey")
+    op.execute("ALTER TABLE ugc_submissions DROP CONSTRAINT IF EXISTS ugc_submissions_event_id_fkey")
+    op.execute("ALTER TABLE placement_requests DROP CONSTRAINT IF EXISTS placement_requests_event_id_fkey")
+    op.execute("ALTER TABLE scheduled_posts DROP CONSTRAINT IF EXISTS scheduled_posts_event_id_fkey")
+    op.execute("ALTER TABLE ad_interactions DROP CONSTRAINT IF EXISTS ad_interactions_event_id_fkey")
+    op.execute("ALTER TABLE parsed_messages DROP CONSTRAINT IF EXISTS parsed_messages_event_id_fkey")
+
+    # Step 2: Drop events table
+    op.execute("DROP TABLE IF EXISTS events CASCADE")
+
+    # Step 3: Create new table with correct column order matching the model
     op.execute("""
         CREATE TABLE events (
-            id UUID PRIMARY KEY,
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             title TEXT NOT NULL,
             date DATE NOT NULL,
             time TIME,
@@ -43,7 +52,7 @@ def upgrade() -> None:
             source_url TEXT NOT NULL,
             quality_score DOUBLE PRECISION DEFAULT 0 NOT NULL,
             event_type VARCHAR DEFAULT 'free' NOT NULL,
-            advertiser_id UUID REFERENCES advertisers(id) ON DELETE SET NULL,
+            advertiser_id UUID,
             pricing_model VARCHAR,
             price_paid INTEGER,
             budget INTEGER,
@@ -53,7 +62,7 @@ def upgrade() -> None:
             clicks INTEGER DEFAULT 0 NOT NULL,
             status VARCHAR DEFAULT 'active' NOT NULL,
             is_approved BOOLEAN DEFAULT true NOT NULL,
-            duplicate_of UUID REFERENCES events_old(id) ON DELETE SET NULL,
+            duplicate_of UUID,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
             CONSTRAINT ck_events_category CHECK (category IN ('concert','theatre','kids','tour','party','expo','other')),
@@ -64,59 +73,23 @@ def upgrade() -> None:
         )
     """)
 
-    # Step 3: Copy data from old table
-    op.execute("""
-        INSERT INTO events (
-            id, title, date, time, price_min, price_max, is_free, category, city, venue_name, address,
-            lat, lon, description, image_url, images, source, source_url, quality_score, event_type,
-            advertiser_id, pricing_model, price_paid, budget, spent_budget, position, views, clicks,
-            status, is_approved, duplicate_of, created_at, updated_at
-        )
-        SELECT
-            id, title, date, time, price_min, price_max, is_free, category, city, venue_name, address,
-            lat, lon, description, image_url, images, source, source_url, quality_score, event_type,
-            advertiser_id, pricing_model, price_paid, budget, spent_budget, position, views, clicks,
-            status, is_approved, duplicate_of, created_at, updated_at
-        FROM events_old
-    """)
-
-    # Step 4: Fix foreign key for duplicate_of (now pointing to new table)
-    op.execute("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_duplicate_of_fkey")
+    # Step 4: Add foreign keys
+    op.execute("ALTER TABLE events ADD CONSTRAINT events_advertiser_id_fkey FOREIGN KEY (advertiser_id) REFERENCES advertisers(id) ON DELETE SET NULL")
     op.execute("ALTER TABLE events ADD CONSTRAINT events_duplicate_of_fkey FOREIGN KEY (duplicate_of) REFERENCES events(id) ON DELETE SET NULL")
 
-    # Step 5: Recreate indexes
-    op.execute("CREATE INDEX ix_events_date ON events(date)")
-    op.execute("CREATE INDEX ix_events_category ON events(category)")
-    op.execute("CREATE INDEX ix_events_lat_lon ON events(lat, lon)")
-    op.execute("CREATE INDEX ix_events_type_status ON events(event_type, status)")
+    # Step 5: Create indexes
+    op.execute("CREATE INDEX IF NOT EXISTS ix_events_date ON events(date)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_events_category ON events(category)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_events_lat_lon ON events(lat, lon)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_events_type_status ON events(event_type, status)")
 
-    # Step 6: Update foreign keys in other tables to point to new events table
-    # EventImage
-    op.execute("ALTER TABLE event_images DROP CONSTRAINT IF EXISTS event_images_event_id_fkey")
+    # Step 6: Recreate foreign keys in other tables pointing to events
     op.execute("ALTER TABLE event_images ADD CONSTRAINT event_images_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE")
-
-    # UGCSubmission
-    op.execute("ALTER TABLE ugc_submissions DROP CONSTRAINT IF EXISTS ugc_submissions_event_id_fkey")
     op.execute("ALTER TABLE ugc_submissions ADD CONSTRAINT ugc_submissions_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL")
-
-    # PlacementRequest
-    op.execute("ALTER TABLE placement_requests DROP CONSTRAINT IF EXISTS placement_requests_event_id_fkey")
     op.execute("ALTER TABLE placement_requests ADD CONSTRAINT placement_requests_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL")
-
-    # ScheduledPost
-    op.execute("ALTER TABLE scheduled_posts DROP CONSTRAINT IF EXISTS scheduled_posts_event_id_fkey")
     op.execute("ALTER TABLE scheduled_posts ADD CONSTRAINT scheduled_posts_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE")
-
-    # AdInteraction
-    op.execute("ALTER TABLE ad_interactions DROP CONSTRAINT IF EXISTS ad_interactions_event_id_fkey")
     op.execute("ALTER TABLE ad_interactions ADD CONSTRAINT ad_interactions_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE")
-
-    # ParsedMessage
-    op.execute("ALTER TABLE parsed_messages DROP CONSTRAINT IF EXISTS parsed_messages_event_id_fkey")
     op.execute("ALTER TABLE parsed_messages ADD CONSTRAINT parsed_messages_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL")
-
-    # Step 7: Drop old table
-    op.execute("DROP TABLE events_old")
 
 
 def downgrade() -> None:
