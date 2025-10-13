@@ -82,8 +82,7 @@ app.post("/bot/settings/apply")(bot_routes.bot_settings_apply)
 # Import Telegram channel management routes
 from app.admin import telegram_channel_routes
 
-# Register Telegram channel management routes
-app.get("/telegram-channels", response_class=HTMLResponse)(telegram_channel_routes.telegram_channels_page)
+# Register Telegram channel management API routes (UI is in /parsers page)
 app.post("/telegram-channels/verify")(telegram_channel_routes.verify_telegram_channel)
 app.post("/telegram-channels/add")(telegram_channel_routes.add_telegram_channel)
 app.post("/telegram-channels/delete")(telegram_channel_routes.delete_telegram_channel)
