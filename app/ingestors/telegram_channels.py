@@ -190,8 +190,8 @@ async def download_message_media(client: TelegramClient, message: Message) -> li
     media_paths = []
 
     try:
-        # Create uploads directory if it doesn't exist
-        uploads_dir = Path("/app/app/uploads")
+        # Create uploads directory if it doesn't exist (in static folder for web access)
+        uploads_dir = Path("/app/app/admin/static/uploads")
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
         # Download photos
