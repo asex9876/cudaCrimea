@@ -43,10 +43,11 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => window.location.href = result.redirect, 1000);
           } else if (onSuccess === 'remove-row') {
             // Remove parent row/card element
-            const row = form.closest('tr') || form.closest('.card') || form.closest('[data-item-row]');
+            const row = form.closest('tr') || form.closest('.card') || form.closest('.ugc-card') || form.closest('[data-item-row]');
             if (row) {
-              row.style.transition = 'opacity 0.3s';
+              row.style.transition = 'opacity 0.3s, transform 0.3s';
               row.style.opacity = '0';
+              row.style.transform = 'scale(0.8)';
               setTimeout(() => row.remove(), 300);
             }
           }
@@ -119,10 +120,11 @@ document.addEventListener('DOMContentLoaded', function() {
           } else if (onSuccess === 'redirect' && result.redirect) {
             setTimeout(() => window.location.href = result.redirect, 1000);
           } else if (onSuccess === 'remove-row') {
-            const row = button.closest('tr') || button.closest('.card') || button.closest('[data-item-row]');
+            const row = button.closest('tr') || button.closest('.card') || button.closest('.ugc-card') || button.closest('[data-item-row]');
             if (row) {
-              row.style.transition = 'opacity 0.3s';
+              row.style.transition = 'opacity 0.3s, transform 0.3s';
               row.style.opacity = '0';
+              row.style.transform = 'scale(0.8)';
               setTimeout(() => row.remove(), 300);
             }
           } else if (onSuccess === 'update-status') {

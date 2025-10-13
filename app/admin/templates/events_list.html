@@ -182,8 +182,12 @@
     <div class="event-card" onclick="toggleCard(this)">
       <div class="card-compact">
         {% if e.images and e.images is iterable and e.images|length > 0 %}
-          <img src="{{ e.images[0] }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-          <div class="placeholder-img" style="display:none;">📸</div>
+          {% if e.images[0].endswith('.mp4') or e.images[0].endswith('.webm') or e.images[0].endswith('.mov') %}
+            <video src="{{ e.images[0] }}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #1b254b;" muted></video>
+          {% else %}
+            <img src="{{ e.images[0] }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+            <div class="placeholder-img" style="display:none;">📸</div>
+          {% endif %}
         {% elif e.image_url %}
           <img src="{{ e.image_url }}" alt="{{ e.title }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
           <div class="placeholder-img" style="display:none;">📸</div>
@@ -213,10 +217,14 @@
       <div class="card-expanded">
         {% if e.images and e.images is iterable and e.images|length > 0 %}
           <div style="margin-bottom:1rem;">
-            <strong>Фото ({{ e.images|length }} шт.):</strong>
+            <strong>Медиа ({{ e.images|length }} шт.):</strong>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
-              {% for photo_url in e.images %}
-                <img src="{{ photo_url }}" alt="Фото события" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #1b254b;" onerror="this.style.display='none';" />
+              {% for media_url in e.images %}
+                {% if media_url.endswith('.mp4') or media_url.endswith('.webm') or media_url.endswith('.mov') %}
+                  <video src="{{ media_url }}" controls style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #1b254b;"></video>
+                {% else %}
+                  <img src="{{ media_url }}" alt="Фото события" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #1b254b;" onerror="this.style.display='none';" />
+                {% endif %}
               {% endfor %}
             </div>
           </div>

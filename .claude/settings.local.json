@@ -35,7 +35,18 @@
       "Bash(timeout 10 curl -I http://localhost:8000/docs)",
       "Bash(powershell:*)",
       "Bash(timeout:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix: Update deployment scripts for Docker Compose V2\n\nReplace docker-compose commands with docker compose (without hyphen)\nto support Docker Compose V2 which is now the default.\n\nChanges:\n- infra/deploy.sh: Updated all docker-compose → docker compose\n- infra/update.sh: Updated all docker-compose → docker compose\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(sshpass -p \"jR9eG8gT3xjS\" scp root@5.83.140.80:/opt/cudaCrimea/app/db/alembic/versions/1c064442d6af_add_missing_columns_city_images.py ./)",
+      "Bash(ssh:*)",
+      "Bash(ssh-keygen:*)",
+      "Read(//c/Users/sanve/.ssh/**)",
+      "Bash(git reset:*)",
+      "Bash(scp:*)",
+      "Bash(is of type character varying\"\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
