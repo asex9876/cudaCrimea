@@ -4,7 +4,8 @@
       "Bash(ssh:*)",
       "Bash(git push:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd bulk actions for UGC queue: delete and AI processing\n\nFrontend:\n- Added card selector checkboxes to each UGC card\n- Implemented bulk actions toolbar (fixed at bottom)\n- Shows selected count and action buttons\n- Cards highlight when selected with blue border\n- Toolbar appears/disappears based on selection\n\nBackend:\n- POST /ugc/bulk-delete: Delete multiple selected items\n- POST /ugc/bulk-ai-process: Process items with AI\n  - Uses is_event_classifier to validate if text is an event\n  - Uses extract_event_fields to extract structured data\n  - Rejects non-events from queue\n  - Updates events with extracted form data\n  - Returns counts: processed, rejected, updated\n\nAI Processing:\n- Validates each item is actually an event\n- Extracts: title, date, time, venue, address, price, category\n- Updates Redis queue with formatted data\n- Removes non-events automatically\n\nFeatures:\n- ✅ Select multiple cards with checkboxes\n- ✅ Bulk delete unwanted items\n- ✅ AI-powered event validation and formatting\n- ✅ Real-time progress feedback\n- ✅ Automatic page reload after AI processing\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

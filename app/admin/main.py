@@ -1504,8 +1504,9 @@ async def ugc_bulk_ai_process(
     require_login(request)
 
     from fastapi.responses import JSONResponse
-    from app.core.llm.is_event_classifier import classify
-    from app.core.llm.extractor import extract_event_fields
+    from app.core.llm.is_event_classifier import classify, get_active_classifier_prompt
+    from app.core.llm.extractor import extract_event_fields, get_active_extractor_prompt
+    from app.db.models import LLMPrompt
 
     try:
         body = await request.json()
@@ -1521,6 +1522,10 @@ async def ugc_bulk_ai_process(
     items = body.get("items", [])
     if not isinstance(items, list):
         return JSONResponse({"success": False, "error": "Items must be an array"}, status_code=400)
+
+    # Load active prompts from database
+    classifier_prompt = await get_active_classifier_prompt()
+    extractor_prompt = await get_active_extractor_prompt()
 
     processed = 0
     rejected = 0
@@ -1541,8 +1546,8 @@ async def ugc_bulk_ai_process(
             continue
 
         try:
-            # Step 1: Classify if it's an event
-            classification = classify(raw_text)
+            # Step 1: Classify if it's an event using active prompt from DB
+            classification = classify(raw_text, custom_prompt=classifier_prompt)
 
             if not classification.is_event:
                 # Not an event - reject it
@@ -1558,9 +1563,9 @@ async def ugc_bulk_ai_process(
                 await redis.lrem("ugc:queue:parser", 1, raw_json)
                 continue
 
-            # Step 2: Extract event fields
+            # Step 2: Extract event fields using active prompt from DB
             source_url = item.get("source_url")
-            draft = extract_event_fields(raw_text, source_url)
+            draft = extract_event_fields(raw_text, source_url, custom_prompt=extractor_prompt)
 
             # Step 3: Update the item in queue with extracted data
             updated_item = item.copy()

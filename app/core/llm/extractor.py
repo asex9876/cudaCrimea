@@ -83,19 +83,42 @@ class EventDraft(BaseModel):
         raise ValueError("invalid category")
 
 
-SYS_PROMPT = (
+# Default fallback prompt
+DEFAULT_SYS_PROMPT = (
     "Ты — извлекатель фактов о событиях в Крыму/Севастополе. "
     "Верни JSON: {title, date_iso, time_24h|null, venue_name, address, price_min, price_max, "
     "category in [concert|theatre|kids|tour|party|expo|other], source_url}. "
     "Если нет данных — null. Не придумывай."
 )
 
-def extract_event_fields(text: str, source_url: Optional[str] = None) -> EventDraft:
+
+async def get_active_extractor_prompt() -> str:
+    """Get active extractor prompt from database or return default."""
+    try:
+        from app.db.session import get_sessionmaker
+        from app.db.models import LLMPrompt
+        from sqlalchemy import select
+
+        async_session_maker = get_sessionmaker()
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(LLMPrompt)
+                .where(LLMPrompt.prompt_type == 'extractor')
+                .where(LLMPrompt.is_active == True)
+            )
+            prompt = result.scalar_one_or_none()
+            return prompt.system_prompt if prompt else DEFAULT_SYS_PROMPT
+    except Exception:
+        return DEFAULT_SYS_PROMPT
+
+
+def extract_event_fields(text: str, source_url: Optional[str] = None, custom_prompt: Optional[str] = None) -> EventDraft:
     """Extract structured event fields from raw text using LLM.
 
     Args:
         text: Raw text content.
         source_url: Optional associated URL.
+        custom_prompt: Optional custom system prompt to use instead of default.
 
     Returns:
         EventDraft: Validated event draft model.
@@ -103,11 +126,15 @@ def extract_event_fields(text: str, source_url: Optional[str] = None) -> EventDr
 
     s = get_settings()
     model = s.openai_model_extractor
+
+    # Use custom prompt if provided, otherwise use default
+    sys_prompt = custom_prompt if custom_prompt is not None else DEFAULT_SYS_PROMPT
+
     msg = [
-        {"role": "system", "content": SYS_PROMPT},
+        {"role": "system", "content": sys_prompt},
         {"role": "user", "content": text if not source_url else f"SOURCE: {source_url}\n\n{text}"},
     ]
-    content = llm_client.chat_complete(model=model, messages=msg, temperature=0.0)
+    content = llm_client.chat_complete(model=model, messages=msg, temperature=0.0, service="extractor")
     try:
         data = json.loads(content)
     except json.JSONDecodeError:

@@ -53,6 +53,27 @@
     </form>
   </div>
 
+  <!-- Prompts Management Section -->
+  <div class="mt1" style="margin-top: 2rem;">
+    <h3>💬 Управление промптами</h3>
+
+    <div style="margin-bottom: 1rem;">
+      <button class="btn" onclick="showCreatePromptModal()">➕ Создать промпт</button>
+    </div>
+
+    <!-- Classifier Prompts -->
+    <h4>Классификаторы (определяют, является ли текст событием)</h4>
+    <div id="classifier-prompts-list" style="margin-bottom: 2rem;">
+      <p class="muted">Загрузка...</p>
+    </div>
+
+    <!-- Extractor Prompts -->
+    <h4>Экстракторы (извлекают данные о событии)</h4>
+    <div id="extractor-prompts-list" style="margin-bottom: 2rem;">
+      <p class="muted">Загрузка...</p>
+    </div>
+  </div>
+
   <!-- Statistics Section -->
   <div class="mt1" style="margin-top: 2rem;">
     <h3>📊 Статистика использования</h3>
@@ -348,5 +369,220 @@ document.getElementById('period-filter').addEventListener('change', (e) => {
 
 // Initial load
 loadChartData('7d');
+
+// ===== PROMPTS MANAGEMENT =====
+
+let allPrompts = [];
+
+// Load prompts on page load
+async function loadPrompts() {
+  try {
+    const response = await fetch('/admin/llm/prompts');
+    const data = await response.json();
+    allPrompts = data.prompts;
+    renderPrompts();
+  } catch (error) {
+    console.error('Failed to load prompts:', error);
+  }
+}
+
+function renderPrompts() {
+  const classifierList = document.getElementById('classifier-prompts-list');
+  const extractorList = document.getElementById('extractor-prompts-list');
+
+  const classifiers = allPrompts.filter(p => p.prompt_type === 'classifier');
+  const extractors = allPrompts.filter(p => p.prompt_type === 'extractor');
+
+  classifierList.innerHTML = classifiers.length > 0
+    ? classifiers.map(renderPromptCard).join('')
+    : '<p class="muted">Нет промптов</p>';
+
+  extractorList.innerHTML = extractors.length > 0
+    ? extractors.map(renderPromptCard).join('')
+    : '<p class="muted">Нет промптов</p>';
+}
+
+function renderPromptCard(prompt) {
+  const activeLabel = prompt.is_active ? '<span style="background:#28a745;color:white;padding:2px 8px;border-radius:4px;font-size:12px;margin-left:8px;">АКТИВНЫЙ</span>' : '';
+
+  return `
+    <div class="card" style="margin-bottom: 1rem; ${prompt.is_active ? 'border: 2px solid #28a745;' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div style="flex:1;">
+          <h4 style="margin:0 0 0.5rem 0;">${prompt.name}${activeLabel}</h4>
+          ${prompt.description ? `<p class="muted" style="margin:0 0 0.5rem 0;">${prompt.description}</p>` : ''}
+          <details style="margin-top:0.5rem;">
+            <summary style="cursor:pointer;color:#6ea8fe;">Показать промпт</summary>
+            <pre style="background:#1b254b;padding:12px;border-radius:4px;margin-top:8px;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word;">${prompt.system_prompt}</pre>
+            ${prompt.user_prompt_template ? `<pre style="background:#1b254b;padding:12px;border-radius:4px;margin-top:8px;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word;">User template: ${prompt.user_prompt_template}</pre>` : ''}
+          </details>
+        </div>
+        <div style="display:flex;gap:8px;margin-left:16px;">
+          ${!prompt.is_active ? `<button class="btn" style="background:#28a745;" onclick="setActivePrompt('${prompt.id}')">✓ Активировать</button>` : ''}
+          <button class="btn" style="background:#6c757d;" onclick="editPrompt('${prompt.id}')">✏️ Изменить</button>
+          <button class="btn" style="background:#dc3545;" onclick="deletePrompt('${prompt.id}', '${prompt.name}')">🗑️ Удалить</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showCreatePromptModal() {
+  const modal = document.createElement('div');
+  modal.id = 'promptModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10000;';
+
+  modal.innerHTML = `
+    <div class="card" style="max-width:800px;width:90%;max-height:90vh;overflow-y:auto;">
+      <h3>Создать новый промпт</h3>
+      <form id="promptForm" onsubmit="savePrompt(event)">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" id="promptId" name="prompt_id">
+
+        <label>Название</label>
+        <input type="text" name="name" id="promptName" required>
+
+        <label>Тип</label>
+        <select name="prompt_type" id="promptType" required>
+          <option value="classifier">Классификатор (определяет события)</option>
+          <option value="extractor">Экстрактор (извлекает данные)</option>
+        </select>
+
+        <label>Описание (опционально)</label>
+        <textarea name="description" id="promptDescription" rows="2"></textarea>
+
+        <label>Системный промпт</label>
+        <textarea name="system_prompt" id="promptSystemPrompt" rows="8" required></textarea>
+
+        <label>Шаблон пользовательского промпта (опционально, используйте {text} для подстановки текста)</label>
+        <textarea name="user_prompt_template" id="promptUserTemplate" rows="3"></textarea>
+
+        <div style="display:flex;gap:8px;margin-top:1rem;">
+          <button type="submit" class="btn">💾 Сохранить</button>
+          <button type="button" class="btn" style="background:#6c757d;" onclick="closePromptModal()">Отмена</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closePromptModal();
+  });
+}
+
+function closePromptModal() {
+  const modal = document.getElementById('promptModal');
+  if (modal) modal.remove();
+}
+
+function editPrompt(promptId) {
+  const prompt = allPrompts.find(p => p.id === promptId);
+  if (!prompt) return;
+
+  showCreatePromptModal();
+
+  setTimeout(() => {
+    document.getElementById('promptId').value = prompt.id;
+    document.getElementById('promptName').value = prompt.name;
+    document.getElementById('promptType').value = prompt.prompt_type;
+    document.getElementById('promptType').disabled = true; // Can't change type
+    document.getElementById('promptDescription').value = prompt.description || '';
+    document.getElementById('promptSystemPrompt').value = prompt.system_prompt;
+    document.getElementById('promptUserTemplate').value = prompt.user_prompt_template || '';
+    document.querySelector('#promptModal h3').textContent = 'Редактировать промпт';
+  }, 50);
+}
+
+async function savePrompt(event) {
+  event.preventDefault();
+
+  const form = event.target;
+  const formData = new FormData(form);
+  const promptId = formData.get('prompt_id');
+
+  const url = promptId
+    ? `/admin/llm/prompts/${promptId}/update`
+    : '/admin/llm/prompts/create';
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      closePromptModal();
+      await loadPrompts();
+      alert(promptId ? 'Промпт обновлен' : 'Промпт создан');
+    } else {
+      alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Save prompt error:', error);
+    alert('Ошибка при сохранении: ' + error.message);
+  }
+}
+
+async function setActivePrompt(promptId) {
+  if (!confirm('Активировать этот промпт? Текущий активный промпт будет деактивирован.')) {
+    return;
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('csrf', '{{ csrf }}');
+
+    const response = await fetch(`/admin/llm/prompts/${promptId}/set-active`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      await loadPrompts();
+      alert('Промпт активирован');
+    } else {
+      alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Set active error:', error);
+    alert('Ошибка: ' + error.message);
+  }
+}
+
+async function deletePrompt(promptId, promptName) {
+  if (!confirm(`Удалить промпт "${promptName}"?`)) {
+    return;
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('csrf', '{{ csrf }}');
+
+    const response = await fetch(`/admin/llm/prompts/${promptId}/delete`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      await loadPrompts();
+      alert('Промпт удален');
+    } else {
+      alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Delete error:', error);
+    alert('Ошибка: ' + error.message);
+  }
+}
+
+// Load prompts on page load
+loadPrompts();
 </script>
 {% endblock %}
