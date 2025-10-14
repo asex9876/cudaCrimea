@@ -517,7 +517,7 @@
       {% set p = it.preview %}
       {% set is_paid = it.wants_paid_promotion %}
       {% set is_parser = it.is_parser %}
-      <div class="ugc-card {{ 'parser' if is_parser else ('paid' if is_paid else 'free') }}" data-item-index="{{ loop.index }}" data-item-raw="{{ it.raw | tojson | e }}">
+      <div class="ugc-card {{ 'parser' if is_parser else ('paid' if is_paid else 'free') }}" data-item-index="{{ loop.index }}" data-item-raw="{{ it.raw | e }}">
         {# Card selector checkbox #}
         <input type="checkbox" class="card-selector" data-item-index="{{ loop.index }}" title="Выбрать карточку">
 
