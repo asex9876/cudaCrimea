@@ -66,7 +66,7 @@
 .carousel-arrow.prev { left: 8px; }
 .carousel-arrow.next { right: 8px; }
 
-/* Photo selector checkbox */
+/* Photo selector checkbox (deprecated - used to be for photo deletion) */
 .photo-selector {
   position: absolute;
   top: 8px;
@@ -76,6 +76,99 @@
   cursor: pointer;
   z-index: 11;
   accent-color: #FF0000;
+  display: none; /* Hidden for now */
+}
+
+/* Card selector checkbox */
+.card-selector {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  z-index: 12;
+  accent-color: #0066cc;
+  transform: scale(1.3);
+}
+
+/* Selected card highlight */
+.ugc-card.selected {
+  box-shadow: 0 0 0 3px #0066cc;
+  transform: translateY(-2px);
+}
+
+/* Bulk actions toolbar */
+.bulk-actions-toolbar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1c2733;
+  border: 2px solid #0066cc;
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  flex-wrap: wrap;
+}
+
+.bulk-actions-toolbar.active {
+  display: flex;
+}
+
+.bulk-actions-count {
+  color: #0066cc;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.bulk-action-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bulk-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.bulk-action-btn.delete {
+  background: #dc3545;
+  color: white;
+}
+
+.bulk-action-btn.delete:hover {
+  background: #c82333;
+}
+
+.bulk-action-btn.ai-process {
+  background: #FFD700;
+  color: #000;
+}
+
+.bulk-action-btn.ai-process:hover {
+  background: #FFC700;
+}
+
+.bulk-action-btn.deselect {
+  background: #6c757d;
+  color: white;
+}
+
+.bulk-action-btn.deselect:hover {
+  background: #5a6268;
 }
 
 /* Photo counter */
@@ -424,7 +517,10 @@
       {% set p = it.preview %}
       {% set is_paid = it.wants_paid_promotion %}
       {% set is_parser = it.is_parser %}
-      <div class="ugc-card {{ 'parser' if is_parser else ('paid' if is_paid else 'free') }}">
+      <div class="ugc-card {{ 'parser' if is_parser else ('paid' if is_paid else 'free') }}" data-item-index="{{ loop.index }}" data-item-raw="{{ it.raw | tojson | e }}">
+        {# Card selector checkbox #}
+        <input type="checkbox" class="card-selector" data-item-index="{{ loop.index }}" title="Выбрать карточку">
+
         {# Photo carousel #}
         {% if it.images and it.images|length %}
         <div class="photo-carousel" id="carousel-{{ loop.index }}">
@@ -527,6 +623,20 @@
         </div>
       </div>
       {% endfor %}
+    </div>
+
+    <!-- Bulk Actions Toolbar -->
+    <div id="bulkActionsToolbar" class="bulk-actions-toolbar">
+      <span class="bulk-actions-count">Выбрано: <span id="selectedCount">0</span></span>
+      <button class="bulk-action-btn ai-process" id="bulkAiProcessBtn">
+        <span>🤖</span> Обработать AI
+      </button>
+      <button class="bulk-action-btn delete" id="bulkDeleteBtn">
+        <span>🗑️</span> Удалить
+      </button>
+      <button class="bulk-action-btn deselect" id="bulkDeselectBtn">
+        Снять выбор
+      </button>
     </div>
   {% endif %}
 </div>
@@ -657,6 +767,185 @@ document.addEventListener('keydown', (e) => {
       if (activeCarousel) changePhoto(activeCarousel.id, 1);
     }
   }
+});
+
+// ===== BULK ACTIONS FUNCTIONALITY =====
+
+// Track selected cards
+let selectedCards = new Set();
+
+// Update toolbar visibility and count
+function updateBulkToolbar() {
+  const toolbar = document.getElementById('bulkActionsToolbar');
+  const countSpan = document.getElementById('selectedCount');
+
+  if (selectedCards.size > 0) {
+    toolbar.classList.add('active');
+    countSpan.textContent = selectedCards.size;
+  } else {
+    toolbar.classList.remove('active');
+  }
+}
+
+// Handle card selection
+document.addEventListener('DOMContentLoaded', () => {
+  const checkboxes = document.querySelectorAll('.card-selector');
+
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      const card = this.closest('.ugc-card');
+      const itemIndex = this.dataset.itemIndex;
+
+      if (this.checked) {
+        selectedCards.add(itemIndex);
+        card.classList.add('selected');
+      } else {
+        selectedCards.delete(itemIndex);
+        card.classList.remove('selected');
+      }
+
+      updateBulkToolbar();
+    });
+  });
+
+  // Deselect all button
+  document.getElementById('bulkDeselectBtn').addEventListener('click', () => {
+    selectedCards.clear();
+    checkboxes.forEach(cb => {
+      cb.checked = false;
+      cb.closest('.ugc-card').classList.remove('selected');
+    });
+    updateBulkToolbar();
+  });
+
+  // Bulk delete button
+  document.getElementById('bulkDeleteBtn').addEventListener('click', async () => {
+    if (selectedCards.size === 0) return;
+
+    if (!confirm(`Удалить ${selectedCards.size} выбранных карточек?`)) {
+      return;
+    }
+
+    const rawItems = [];
+    selectedCards.forEach(itemIndex => {
+      const card = document.querySelector(`.ugc-card[data-item-index="${itemIndex}"]`);
+      if (card) {
+        const rawData = card.dataset.itemRaw;
+        try {
+          rawItems.push(JSON.parse(rawData));
+        } catch (e) {
+          console.error('Failed to parse raw data:', e);
+        }
+      }
+    });
+
+    if (rawItems.length === 0) {
+      alert('Не удалось получить данные карточек');
+      return;
+    }
+
+    try {
+      const csrf = document.querySelector('input[name="csrf"]').value;
+      const response = await fetch('/admin/ugc/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          csrf: csrf,
+          items: rawItems
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove cards from DOM
+        selectedCards.forEach(itemIndex => {
+          const card = document.querySelector(`.ugc-card[data-item-index="${itemIndex}"]`);
+          if (card) {
+            card.style.transition = 'opacity 0.3s';
+            card.style.opacity = '0';
+            setTimeout(() => card.remove(), 300);
+          }
+        });
+
+        selectedCards.clear();
+        updateBulkToolbar();
+
+        alert(`Удалено ${result.deleted_count} карточек`);
+      } else {
+        alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+      }
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      alert('Ошибка при удалении: ' + error.message);
+    }
+  });
+
+  // Bulk AI process button
+  document.getElementById('bulkAiProcessBtn').addEventListener('click', async () => {
+    if (selectedCards.size === 0) return;
+
+    if (!confirm(`Обработать ${selectedCards.size} выбранных карточек с помощью AI?\n\nAI проверит, являются ли это событиями, и отформатирует их по стандарту.`)) {
+      return;
+    }
+
+    const rawItems = [];
+    selectedCards.forEach(itemIndex => {
+      const card = document.querySelector(`.ugc-card[data-item-index="${itemIndex}"]`);
+      if (card) {
+        const rawData = card.dataset.itemRaw;
+        try {
+          rawItems.push(JSON.parse(rawData));
+        } catch (e) {
+          console.error('Failed to parse raw data:', e);
+        }
+      }
+    });
+
+    if (rawItems.length === 0) {
+      alert('Не удалось получить данные карточек');
+      return;
+    }
+
+    // Disable button and show progress
+    const aiBtn = document.getElementById('bulkAiProcessBtn');
+    const originalText = aiBtn.innerHTML;
+    aiBtn.disabled = true;
+    aiBtn.innerHTML = '<span>⏳</span> Обработка...';
+
+    try {
+      const csrf = document.querySelector('input[name="csrf"]').value;
+      const response = await fetch('/admin/ugc/bulk-ai-process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          csrf: csrf,
+          items: rawItems
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`AI обработка завершена:\n✅ Обработано: ${result.processed}\n❌ Отклонено (не события): ${result.rejected}\n✏️ Обновлено: ${result.updated}`);
+
+        // Reload page to show updated items
+        window.location.reload();
+      } else {
+        alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+      }
+    } catch (error) {
+      console.error('Bulk AI process error:', error);
+      alert('Ошибка при обработке: ' + error.message);
+    } finally {
+      aiBtn.disabled = false;
+      aiBtn.innerHTML = originalText;
+    }
+  });
 });
 </script>
 {% endblock %}

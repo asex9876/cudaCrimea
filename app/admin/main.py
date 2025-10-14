@@ -1447,6 +1447,174 @@ async def ugc_reject(request: Request, raw: str = Form(...), csrf: str = Form(..
     return JSONResponse({"success": True, "message": "Событие отклонено"})
 
 
+@app.post("/ugc/bulk-delete")
+async def ugc_bulk_delete(request: Request, redis: aioredis.Redis = Depends(get_redis)) -> Any:
+    """Bulk delete selected UGC items from queue."""
+    require_login(request)
+
+    from fastapi.responses import JSONResponse
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
+
+    csrf = body.get("csrf")
+    if not csrf:
+        return JSONResponse({"success": False, "error": "Missing CSRF token"}, status_code=400)
+
+    check_csrf(request, csrf)
+
+    items = body.get("items", [])
+    if not isinstance(items, list):
+        return JSONResponse({"success": False, "error": "Items must be an array"}, status_code=400)
+
+    deleted_count = 0
+    for item in items:
+        if isinstance(item, dict):
+            # Reconstruct raw JSON string
+            raw = json.dumps(item, ensure_ascii=False)
+            # Remove from all queues
+            removed = await redis.lrem("ugc:queue", 1, raw)
+            if removed == 0:
+                removed = await redis.lrem("ugc:queue:paid", 1, raw)
+            if removed == 0:
+                removed = await redis.lrem("ugc:queue:parser", 1, raw)
+
+            if removed > 0:
+                deleted_count += 1
+
+    logger.info("ugc.bulk_delete", deleted_count=deleted_count, total_items=len(items))
+    return JSONResponse({"success": True, "deleted_count": deleted_count})
+
+
+@app.post("/ugc/bulk-ai-process")
+async def ugc_bulk_ai_process(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    redis: aioredis.Redis = Depends(get_redis)
+) -> Any:
+    """Bulk process UGC items with AI to validate and format events."""
+    require_login(request)
+
+    from fastapi.responses import JSONResponse
+    from app.core.llm.is_event_classifier import classify
+    from app.core.llm.extractor import extract_event_fields
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
+
+    csrf = body.get("csrf")
+    if not csrf:
+        return JSONResponse({"success": False, "error": "Missing CSRF token"}, status_code=400)
+
+    check_csrf(request, csrf)
+
+    items = body.get("items", [])
+    if not isinstance(items, list):
+        return JSONResponse({"success": False, "error": "Items must be an array"}, status_code=400)
+
+    processed = 0
+    rejected = 0
+    updated = 0
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+
+        raw_text = item.get("raw_text", "")
+        if not raw_text or len(raw_text) < 20:
+            rejected += 1
+            # Remove from queue
+            raw_json = json.dumps(item, ensure_ascii=False)
+            await redis.lrem("ugc:queue", 1, raw_json)
+            await redis.lrem("ugc:queue:paid", 1, raw_json)
+            await redis.lrem("ugc:queue:parser", 1, raw_json)
+            continue
+
+        try:
+            # Step 1: Classify if it's an event
+            classification = classify(raw_text)
+
+            if not classification.is_event:
+                # Not an event - reject it
+                rejected += 1
+                logger.info("ugc.ai_process.not_event",
+                           raw_text_preview=raw_text[:100],
+                           reasons=classification.reasons)
+
+                # Remove from queue
+                raw_json = json.dumps(item, ensure_ascii=False)
+                await redis.lrem("ugc:queue", 1, raw_json)
+                await redis.lrem("ugc:queue:paid", 1, raw_json)
+                await redis.lrem("ugc:queue:parser", 1, raw_json)
+                continue
+
+            # Step 2: Extract event fields
+            source_url = item.get("source_url")
+            draft = extract_event_fields(raw_text, source_url)
+
+            # Step 3: Update the item in queue with extracted data
+            updated_item = item.copy()
+            updated_item["form"] = {
+                "title": draft.title,
+                "date_iso": draft.date_iso,
+                "time_24h": draft.time_24h,
+                "venue_name": draft.venue_name,
+                "address": draft.address,
+                "price_min": draft.price_min,
+                "price_max": draft.price_max,
+                "category": draft.category,
+                "source_url": draft.source_url or source_url,
+            }
+
+            # Replace in Redis: remove old, add new at the end
+            old_raw = json.dumps(item, ensure_ascii=False)
+            new_raw = json.dumps(updated_item, ensure_ascii=False)
+
+            # Determine which queue to update
+            removed = await redis.lrem("ugc:queue", 1, old_raw)
+            if removed > 0:
+                await redis.rpush("ugc:queue", new_raw)
+            else:
+                removed = await redis.lrem("ugc:queue:paid", 1, old_raw)
+                if removed > 0:
+                    await redis.rpush("ugc:queue:paid", new_raw)
+                else:
+                    removed = await redis.lrem("ugc:queue:parser", 1, old_raw)
+                    if removed > 0:
+                        await redis.rpush("ugc:queue:parser", new_raw)
+
+            if removed > 0:
+                updated += 1
+                logger.info("ugc.ai_process.updated",
+                           title=draft.title,
+                           category=draft.category)
+
+            processed += 1
+
+        except Exception as e:
+            logger.error("ugc.ai_process.error",
+                        error=str(e),
+                        raw_text_preview=raw_text[:100])
+            continue
+
+    logger.info("ugc.ai_process.completed",
+               processed=processed,
+               rejected=rejected,
+               updated=updated,
+               total_items=len(items))
+
+    return JSONResponse({
+        "success": True,
+        "processed": processed,
+        "rejected": rejected,
+        "updated": updated,
+    })
+
+
 # -------- Ads CRUD --------
 
 
