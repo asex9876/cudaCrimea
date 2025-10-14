@@ -23,10 +23,11 @@
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
 }
 
-/* Color borders for paid/free/parser */
+/* Color borders for paid/free/parser/ai-processed */
 .ugc-card.free { border: 3px solid #808080; }  /* Gray for free */
 .ugc-card.paid { border: 3px solid #FF0000; }  /* Red for paid */
 .ugc-card.parser { border: 3px solid #FFD700; }  /* Yellow/Gold for parsed events */
+.ugc-card.ai-processed { border: 3px solid #00CED1; }  /* Cyan/Turquoise for AI-processed */
 
 /* Photo carousel */
 .photo-carousel {
@@ -517,7 +518,8 @@
       {% set p = it.preview %}
       {% set is_paid = it.wants_paid_promotion %}
       {% set is_parser = it.is_parser %}
-      <div class="ugc-card {{ 'parser' if is_parser else ('paid' if is_paid else 'free') }}" data-item-index="{{ loop.index }}" data-item-raw="{{ it.raw | e }}">
+      {% set is_ai_processed = it.is_ai_processed %}
+      <div class="ugc-card {{ 'ai-processed' if is_ai_processed else ('parser' if is_parser else ('paid' if is_paid else 'free')) }}" data-item-index="{{ loop.index }}" data-item-raw="{{ it.raw | e }}">
         {# Card selector checkbox #}
         <input type="checkbox" class="card-selector" data-item-index="{{ loop.index }}" title="Выбрать карточку">
 
@@ -562,8 +564,12 @@
 
         {# Card content #}
         <div class="card-content">
-          {# User/Parser info #}
-          {% if is_parser %}
+          {# User/Parser/AI info #}
+          {% if is_ai_processed %}
+          <div class="user-info" style="background:#00CED1;color:#fff;padding:4px 8px;border-radius:4px;font-weight:600;">
+            ✨ AI обработано
+          </div>
+          {% elif is_parser %}
           <div class="user-info" style="background:#FFD700;color:#000;padding:4px 8px;border-radius:4px;font-weight:600;">
             🤖 Парсер: {{ it.parser_name or 'Unknown' }}
           </div>

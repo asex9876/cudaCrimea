@@ -1337,6 +1337,7 @@ async def ugc_list(request: Request, queue: str = "all", redis: aioredis.Redis =
                 "wants_paid_promotion": data.get("wants_paid_promotion", False),
                 "is_parser": data.get("source") == "parser",  # Mark parsed events
                 "parser_name": data.get("parser_name", ""),  # Parser source name
+                "is_ai_processed": isinstance(form, dict) and form is not None,  # Mark AI-processed items
             }
         )
     return templates.TemplateResponse("ugc.html", {"request": request, "csrf": csrf, "items": enriched, "current_queue": queue})
