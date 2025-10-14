@@ -453,6 +453,27 @@ class LLMUsage(Base):
     )
 
 
+class LLMPrompt(Base):
+    """LLM prompts for event extraction and classification."""
+
+    __tablename__ = "llm_prompts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String)  # Human-readable name
+    prompt_type: Mapped[str] = mapped_column(String)  # 'classifier' or 'extractor'
+    system_prompt: Mapped[str] = mapped_column(String)  # System prompt text
+    user_prompt_template: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # User prompt template with {text} placeholder
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))  # Only one active per type
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Optional description
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+    __table_args__ = (
+        CheckConstraint("prompt_type IN ('classifier','extractor')", name="ck_llm_prompts_type"),
+        Index("ix_llm_prompts_type_active", "prompt_type", "is_active"),
+    )
+
+
 class BotSettings(Base):
     """Bot configuration (avatar, description, commands, etc)."""
 

@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import LLMUsage
+from app.db.models import LLMPrompt, LLMUsage
 from app.db.session import get_session
 from app.core import runtime_config as rc
 
@@ -340,3 +340,174 @@ async def llm_chart_data(
             "bar_chart": bar_chart,
         }
     )
+
+
+async def llm_prompts_list(request: Request, session: AsyncSession = Depends(get_session)) -> Any:
+    """Get list of all prompts for API calls."""
+    require_login(request)
+
+    from fastapi.responses import JSONResponse
+
+    # Get all prompts ordered by type and name
+    result = await session.execute(
+        select(LLMPrompt).order_by(LLMPrompt.prompt_type, LLMPrompt.name)
+    )
+    prompts = result.scalars().all()
+
+    return JSONResponse({
+        "prompts": [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "prompt_type": p.prompt_type,
+                "system_prompt": p.system_prompt,
+                "user_prompt_template": p.user_prompt_template,
+                "is_active": p.is_active,
+                "description": p.description,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in prompts
+        ]
+    })
+
+
+async def llm_prompt_create(
+    request: Request,
+    csrf: str = Form(...),
+    name: str = Form(...),
+    prompt_type: str = Form(...),
+    system_prompt: str = Form(...),
+    user_prompt_template: str = Form(None),
+    description: str = Form(None),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Create a new prompt."""
+    require_login(request)
+    check_csrf(request, csrf)
+
+    import uuid
+    from fastapi.responses import JSONResponse
+
+    # Validate prompt_type
+    if prompt_type not in ("classifier", "extractor"):
+        return JSONResponse({"success": False, "error": "Invalid prompt_type"}, status_code=400)
+
+    # Create new prompt
+    prompt = LLMPrompt(
+        id=uuid.uuid4(),
+        name=name.strip(),
+        prompt_type=prompt_type,
+        system_prompt=system_prompt.strip(),
+        user_prompt_template=user_prompt_template.strip() if user_prompt_template else None,
+        description=description.strip() if description else None,
+        is_active=False,  # New prompts are inactive by default
+    )
+
+    session.add(prompt)
+    await session.commit()
+
+    return JSONResponse({"success": True, "id": str(prompt.id)})
+
+
+async def llm_prompt_update(
+    request: Request,
+    prompt_id: str,
+    csrf: str = Form(...),
+    name: str = Form(...),
+    system_prompt: str = Form(...),
+    user_prompt_template: str = Form(None),
+    description: str = Form(None),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Update an existing prompt."""
+    require_login(request)
+    check_csrf(request, csrf)
+
+    import uuid
+    from fastapi.responses import JSONResponse
+
+    # Find prompt
+    result = await session.execute(
+        select(LLMPrompt).where(LLMPrompt.id == uuid.UUID(prompt_id))
+    )
+    prompt = result.scalar_one_or_none()
+
+    if not prompt:
+        return JSONResponse({"success": False, "error": "Prompt not found"}, status_code=404)
+
+    # Update fields
+    prompt.name = name.strip()
+    prompt.system_prompt = system_prompt.strip()
+    prompt.user_prompt_template = user_prompt_template.strip() if user_prompt_template else None
+    prompt.description = description.strip() if description else None
+    prompt.updated_at = datetime.now()
+
+    await session.commit()
+
+    return JSONResponse({"success": True})
+
+
+async def llm_prompt_delete(
+    request: Request,
+    prompt_id: str,
+    csrf: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Delete a prompt."""
+    require_login(request)
+    check_csrf(request, csrf)
+
+    import uuid
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import delete
+
+    # Delete prompt
+    result = await session.execute(
+        delete(LLMPrompt).where(LLMPrompt.id == uuid.UUID(prompt_id))
+    )
+
+    await session.commit()
+
+    if result.rowcount == 0:
+        return JSONResponse({"success": False, "error": "Prompt not found"}, status_code=404)
+
+    return JSONResponse({"success": True})
+
+
+async def llm_prompt_set_active(
+    request: Request,
+    prompt_id: str,
+    csrf: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Set a prompt as active (deactivates others of same type)."""
+    require_login(request)
+    check_csrf(request, csrf)
+
+    import uuid
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import update
+
+    # Find prompt
+    result = await session.execute(
+        select(LLMPrompt).where(LLMPrompt.id == uuid.UUID(prompt_id))
+    )
+    prompt = result.scalar_one_or_none()
+
+    if not prompt:
+        return JSONResponse({"success": False, "error": "Prompt not found"}, status_code=404)
+
+    # Deactivate all prompts of same type
+    await session.execute(
+        update(LLMPrompt)
+        .where(LLMPrompt.prompt_type == prompt.prompt_type)
+        .values(is_active=False)
+    )
+
+    # Activate this prompt
+    prompt.is_active = True
+    prompt.updated_at = datetime.now()
+
+    await session.commit()
+
+    return JSONResponse({"success": True})

@@ -73,6 +73,11 @@ app.get("/llm", response_class=HTMLResponse)(llm_routes.llm_page)
 app.post("/llm/settings")(llm_routes.llm_settings_save)
 app.post("/llm/test")(llm_routes.llm_test)
 app.get("/llm/chart-data")(llm_routes.llm_chart_data)
+app.get("/llm/prompts")(llm_routes.llm_prompts_list)
+app.post("/llm/prompts/create")(llm_routes.llm_prompt_create)
+app.post("/llm/prompts/{prompt_id}/update")(llm_routes.llm_prompt_update)
+app.post("/llm/prompts/{prompt_id}/delete")(llm_routes.llm_prompt_delete)
+app.post("/llm/prompts/{prompt_id}/set-active")(llm_routes.llm_prompt_set_active)
 
 # Import Bot settings routes
 from app.admin import bot_routes
