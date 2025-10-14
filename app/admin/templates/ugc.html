@@ -196,6 +196,94 @@
 
 .muted { color: #999; }
 
+/* Lightbox Modal */
+.lightbox-modal {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.95);
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-modal.active {
+  display: flex;
+}
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-image {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+}
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  font-size: 40px;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.5);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s;
+}
+.lightbox-close:hover {
+  background: rgba(255, 0, 0, 0.7);
+  transform: rotate(90deg);
+}
+.lightbox-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 60px;
+  color: white;
+  cursor: pointer;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  user-select: none;
+  transition: background 0.3s;
+  z-index: 10000;
+}
+.lightbox-arrow:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+.lightbox-arrow.prev {
+  left: 30px;
+}
+.lightbox-arrow.next {
+  right: 30px;
+}
+.lightbox-counter {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 16px;
+  z-index: 10000;
+}
+
 /* Mobile Responsive Styles */
 @media (max-width: 1400px) {
   .ugc-grid {
@@ -443,6 +531,17 @@
   {% endif %}
 </div>
 
+<!-- Lightbox Modal -->
+<div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
+  <span class="lightbox-close" onclick="closeLightbox(event)">&times;</span>
+  <div class="lightbox-arrow prev" onclick="changeLightboxPhoto(-1); event.stopPropagation();">‹</div>
+  <div class="lightbox-content">
+    <img id="lightboxImage" class="lightbox-image" src="" alt="Full size">
+  </div>
+  <div class="lightbox-arrow next" onclick="changeLightboxPhoto(1); event.stopPropagation();">›</div>
+  <div class="lightbox-counter" id="lightboxCounter">1 / 1</div>
+</div>
+
 <script>
 // Photo carousel navigation
 function changePhoto(carouselId, direction) {
@@ -468,14 +567,95 @@ function changePhoto(carouselId, direction) {
   }
 }
 
-// Keyboard navigation for carousel
+// Lightbox functionality
+let currentLightboxImages = [];
+let currentLightboxIndex = 0;
+
+function openLightbox(imageSrc, imageArray, startIndex) {
+  currentLightboxImages = imageArray;
+  currentLightboxIndex = startIndex;
+
+  const modal = document.getElementById('lightboxModal');
+  const image = document.getElementById('lightboxImage');
+  const counter = document.getElementById('lightboxCounter');
+
+  image.src = imageSrc;
+  modal.classList.add('active');
+  counter.textContent = `${startIndex + 1} / ${imageArray.length}`;
+
+  // Hide arrows if only one image
+  const arrows = modal.querySelectorAll('.lightbox-arrow');
+  if (imageArray.length <= 1) {
+    arrows.forEach(arrow => arrow.style.display = 'none');
+  } else {
+    arrows.forEach(arrow => arrow.style.display = 'flex');
+  }
+
+  // Prevent background scrolling
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox(event) {
+  const modal = document.getElementById('lightboxModal');
+
+  // Close if clicked on background or close button
+  if (event && (event.target.id === 'lightboxModal' || event.target.classList.contains('lightbox-close'))) {
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+}
+
+function changeLightboxPhoto(direction) {
+  if (currentLightboxImages.length <= 1) return;
+
+  currentLightboxIndex += direction;
+
+  // Wrap around
+  if (currentLightboxIndex < 0) {
+    currentLightboxIndex = currentLightboxImages.length - 1;
+  } else if (currentLightboxIndex >= currentLightboxImages.length) {
+    currentLightboxIndex = 0;
+  }
+
+  document.getElementById('lightboxImage').src = currentLightboxImages[currentLightboxIndex];
+  document.getElementById('lightboxCounter').textContent = `${currentLightboxIndex + 1} / ${currentLightboxImages.length}`;
+}
+
+// Make carousel images clickable
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.carousel-image').forEach(img => {
+    img.style.cursor = 'pointer';
+    img.addEventListener('click', function() {
+      const carousel = this.closest('.photo-carousel');
+      const allImages = Array.from(carousel.querySelectorAll('.carousel-image')).map(img => img.src);
+      const currentIndex = Array.from(carousel.querySelectorAll('.carousel-image')).indexOf(this);
+      openLightbox(this.src, allImages, currentIndex);
+    });
+  });
+});
+
+// Keyboard navigation for carousel and lightbox
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft') {
-    const activeCarousel = document.querySelector('.photo-carousel:hover');
-    if (activeCarousel) changePhoto(activeCarousel.id, -1);
-  } else if (e.key === 'ArrowRight') {
-    const activeCarousel = document.querySelector('.photo-carousel:hover');
-    if (activeCarousel) changePhoto(activeCarousel.id, 1);
+  const modal = document.getElementById('lightboxModal');
+
+  // Lightbox keyboard navigation
+  if (modal && modal.classList.contains('active')) {
+    if (e.key === 'Escape') {
+      closeLightbox({target: modal});
+    } else if (e.key === 'ArrowLeft') {
+      changeLightboxPhoto(-1);
+    } else if (e.key === 'ArrowRight') {
+      changeLightboxPhoto(1);
+    }
+  } else {
+    // Carousel keyboard navigation (only when lightbox is not active)
+    if (e.key === 'ArrowLeft') {
+      const activeCarousel = document.querySelector('.photo-carousel:hover');
+      if (activeCarousel) changePhoto(activeCarousel.id, -1);
+    } else if (e.key === 'ArrowRight') {
+      const activeCarousel = document.querySelector('.photo-carousel:hover');
+      if (activeCarousel) changePhoto(activeCarousel.id, 1);
+    }
   }
 });
 </script>
