@@ -21,12 +21,24 @@ def request_location_kb() -> ReplyKeyboardMarkup:
 
 
 def when_kb() -> InlineKeyboardMarkup:
+    """Keyboard for date selection with 'Hot' events option."""
     buttons = [
+        # Hot events - today's events that are still accessible
+        [InlineKeyboardButton(text="🔥 Горячее", callback_data="when:hot")],
+        # Quick options
         [
             InlineKeyboardButton(text="Сегодня", callback_data="when:today"),
-            InlineKeyboardButton(text="Вечером", callback_data="when:tonight"),
+            InlineKeyboardButton(text="Завтра", callback_data="when:tomorrow"),
         ],
-        [InlineKeyboardButton(text="Выходные", callback_data="when:weekend")],
+        [
+            InlineKeyboardButton(text="Вечером", callback_data="when:tonight"),
+            InlineKeyboardButton(text="Выходные", callback_data="when:weekend"),
+        ],
+        # Extended period options
+        [
+            InlineKeyboardButton(text="На этой неделе", callback_data="when:this_week"),
+            InlineKeyboardButton(text="В этом месяце", callback_data="when:this_month"),
+        ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 

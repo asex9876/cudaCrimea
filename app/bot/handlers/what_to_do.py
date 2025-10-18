@@ -32,11 +32,15 @@ async def _wtd_ui_update(
     text: str,
     kb: InlineKeyboardMarkup | None = None,
 ) -> None:
+    import structlog
+    logger = structlog.get_logger()
+
     data = await state.get_data()
     ui = data.get("_wtd_ui")
     if ui is None:
         m = await bot.send_message(chat_id, text, reply_markup=kb)
         await state.update_data(_wtd_ui={"msg_id": m.message_id, "chat_id": chat_id})
+        logger.info("wtd.ui.new_message", msg_id=m.message_id)
         return
     try:
         await bot.edit_message_text(
@@ -45,8 +49,13 @@ async def _wtd_ui_update(
             text=text,
             reply_markup=kb,
         )
-    except Exception:
-        pass
+        logger.info("wtd.ui.edited", msg_id=ui["msg_id"])
+    except Exception as e:
+        logger.error("wtd.ui.edit_failed", msg_id=ui.get("msg_id"), error=str(e))
+        # Try sending new message as fallback
+        m = await bot.send_message(chat_id, text, reply_markup=kb)
+        await state.update_data(_wtd_ui={"msg_id": m.message_id, "chat_id": chat_id})
+        logger.info("wtd.ui.sent_new_instead", msg_id=m.message_id)
 
 
 def _render_interests_prompt(selected: set[str]) -> tuple[str, InlineKeyboardMarkup]:
@@ -76,7 +85,8 @@ def _event_keyboard(event: dict[str, Any], idx: int, total: int) -> InlineKeyboa
     base = event_actions_kb_with_back(event_id, event.get("deeplink") or "", event.get("source_url"))
     base_rows = [list(row) for row in (base.inline_keyboard or [])]
     image_url = event.get("image_url")
-    if image_url:
+    # Only add photo button if URL is absolute (starts with http:// or https://)
+    if image_url and (image_url.startswith("http://") or image_url.startswith("https://")):
         base_rows.append([InlineKeyboardButton(text="Фото", url=image_url)])
     page_label = f"{idx + 1}/{total}" if total else "0/0"
     if total > 1:
@@ -138,6 +148,30 @@ async def choose_when(cb: CallbackQuery, state: FSMContext) -> None:
         return
     when = (cb.data or "").split(":", 1)[1]
     await state.update_data(when=when)
+
+    # For "hot" events, skip budget and interests - show results immediately
+    if when == "hot":
+        chat_id = cb.message.chat.id
+        await cb.answer("Ищу горячие события…")
+        await _wtd_ui_update(cb.message.bot, state, chat_id, "Ищу горячие события…")
+        city = USER_CITY.get(cb.from_user.id if cb.from_user else 0, "Севастополь")
+        params = {"city": city, "when": "hot", "budget_max": None, "categories": None}
+        try:
+            resp = await api_search(params)
+        except Exception:
+            await _wtd_ui_update(cb.message.bot, state, chat_id, "Сервис временно недоступен. Попробуйте позже.", when_kb())
+            return
+        raw_events = resp.get("events", [])[:5]
+        events = [_prepare_event(e) for e in raw_events if isinstance(e, dict)]
+        if not events:
+            await _wtd_ui_update(cb.message.bot, state, chat_id, "Горячих событий не найдено. Попробуйте другую дату.", when_kb())
+            return
+        await state.update_data(_wtd_events=events)
+        await state.set_state(WhatToDoStates.showing_results)
+        await _wtd_show_event(cb.message.bot, state, chat_id, 0)
+        return
+
+    # For other options, continue with budget selection
     await state.set_state(WhatToDoStates.entering_budget)
     await _wtd_ui_update(cb.message.bot, state, cb.message.chat.id, _budget_prompt_text())
     await cb.answer()

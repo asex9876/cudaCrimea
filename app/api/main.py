@@ -105,9 +105,9 @@ async def on_shutdown() -> None:
 
 
 @app.get("/")
-async def root() -> RedirectResponse:
-    """Redirect root to admin panel"""
-    return RedirectResponse(url="/admin/")
+async def root() -> dict[str, str]:
+    """API root endpoint"""
+    return {"message": "cudaCrimea API", "admin": "/admin/", "health": "/api/health"}
 
 
 # --------- Schemas ---------
@@ -124,7 +124,7 @@ class SearchParams(BaseModel):
     city: str
     lat: Optional[float] = None
     lon: Optional[float] = None
-    when: str = Field(pattern="^(today|tonight|weekend|date)$")
+    when: str = Field(pattern="^(hot|today|tonight|tomorrow|weekend|this_week|this_month|date)$")
     date: Optional[date] = None
     budget_max: Optional[int] = None
     categories: Optional[list[str]] = None
@@ -132,7 +132,7 @@ class SearchParams(BaseModel):
 
 class PollCreateIn(BaseModel):
     city: str
-    when: str = Field(pattern="^(today|tonight|weekend|date)$")
+    when: str = Field(pattern="^(hot|today|tonight|tomorrow|weekend|this_week|this_month|date)$")
     budget_max: Optional[int] = None
     lat: Optional[float] = None
     lon: Optional[float] = None
@@ -156,21 +156,69 @@ class UGCIn(BaseModel):
 # --------- Helpers ---------
 
 
-def _date_filter_for_when(when: str, req_date: Optional[date], now: datetime) -> tuple[list[date], Optional[dtime]]:
+def _date_filter_for_when(when: str, req_date: Optional[date], now: datetime) -> tuple[list[date], Optional[dtime], Optional[dtime]]:
+    """Generate date range and time filter based on 'when' parameter.
+
+    Args:
+        when: Time selector (hot, today, tonight, tomorrow, weekend, this_week, this_month, date)
+        req_date: Specific date when when='date'
+        now: Current datetime
+
+    Returns:
+        Tuple of (list of dates, optional time_from filter, optional time_to filter)
+    """
     today = now.date()
+    tomorrow = today + timedelta(days=1)
+    current_time = now.time()
+
+    if when == "hot":
+        # Hot events: from current time until 8:00 AM next day
+        # Includes both today's events (from now) and tomorrow's early events (until 8:00 AM)
+        time_from = dtime(hour=now.hour, minute=0)
+        time_to = dtime(hour=8, minute=0)
+        return [today, tomorrow], time_from, time_to
+
     if when == "today":
-        return [today], None
+        return [today], None, None
+
     if when == "tonight":
-        return [today], dtime(hour=17, minute=0)
+        return [today], dtime(hour=17, minute=0), None
+
+    if when == "tomorrow":
+        return [tomorrow], None, None
+
     if when == "weekend":
         # Find upcoming Saturday and Sunday
         days_ahead = (5 - today.weekday()) % 7  # Saturday index 5
-        saturday = today + timedelta(days=days_ahead)
+        if days_ahead == 0 and today.weekday() == 5:  # If today is Saturday
+            saturday = today
+        else:
+            saturday = today + timedelta(days=days_ahead if days_ahead > 0 else 7)
         sunday = saturday + timedelta(days=1)
-        return [saturday, sunday], None
+        return [saturday, sunday], None, None
+
+    if when == "this_week":
+        # From today until Sunday
+        days_until_sunday = (6 - today.weekday()) % 7
+        if days_until_sunday == 0:  # If today is Sunday
+            end_date = today
+        else:
+            end_date = today + timedelta(days=days_until_sunday)
+        dates = [today + timedelta(days=i) for i in range((end_date - today).days + 1)]
+        return dates, None, None
+
+    if when == "this_month":
+        # Rest of current month
+        import calendar
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        end_date = date(today.year, today.month, last_day)
+        dates = [today + timedelta(days=i) for i in range((end_date - today).days + 1)]
+        return dates, None, None
+
     if when == "date" and req_date is not None:
-        return [req_date], None
-    return [today], None
+        return [req_date], None, None
+
+    return [today], None, None
 
 
 def _bbox(lat: float, lon: float, km: float) -> tuple[float, float, float, float]:
@@ -226,7 +274,7 @@ async def health() -> dict[str, bool]:
 @app.get("/api/search", response_model=SearchResponse)
 async def search(
     city: str = Query(..., min_length=1),
-    when: str = Query("today", pattern="^(today|tonight|weekend|date)$"),
+    when: str = Query("today", pattern="^(hot|today|tonight|tomorrow|weekend|this_week|this_month|date)$"),
     date_q: Optional[date] = Query(None, alias="date"),
     lat: Optional[float] = Query(None),
     lon: Optional[float] = Query(None),
@@ -287,7 +335,7 @@ async def search(
     logger.info("search.request", city=city, when=when, has_geo=lat is not None and lon is not None)
 
     # Build date filter
-    dates, time_from = _date_filter_for_when(when, date_q, now)
+    dates, time_from, time_to = _date_filter_for_when(when, date_q, now)
 
     # Determine center for city if no lat/lon provided
     center = None
@@ -301,16 +349,33 @@ async def search(
     # Фильтруем только активные события (не прошедшие)
     event_stmt = event_stmt.where(Event.status == "active")
     event_stmt = event_stmt.where(Event.date.in_(dates))
-    if time_from is not None:
+
+    # Special logic for "hot" events (today from time_from, tomorrow until time_to)
+    if when == "hot" and time_from is not None and time_to is not None:
+        today = now.date()
+        tomorrow = today + timedelta(days=1)
+        # (date == today AND time >= time_from) OR (date == tomorrow AND time <= time_to) OR (time IS NULL)
+        event_stmt = event_stmt.where(
+            or_(
+                and_(Event.date == today, or_(Event.time == None, Event.time >= time_from)),  # noqa: E711
+                and_(Event.date == tomorrow, or_(Event.time == None, Event.time <= time_to)),  # noqa: E711
+            )
+        )
+    elif time_from is not None:
         event_stmt = event_stmt.where(or_(Event.time == None, Event.time >= time_from))  # noqa: E711
+
     if categories:
         event_stmt = event_stmt.where(Event.category.in_(categories))
     # Proximity prefilter by bbox (30km) if center is known
+    # BUT include events without coordinates (lat/lon = NULL)
     if center is not None:
         latc, lonc = center
         lat_min, lat_max, lon_min, lon_max = _bbox(latc, lonc, 30.0)
         event_stmt = event_stmt.where(
-            and_(Event.lat >= lat_min, Event.lat <= lat_max, Event.lon >= lon_min, Event.lon <= lon_max)
+            or_(
+                and_(Event.lat >= lat_min, Event.lat <= lat_max, Event.lon >= lon_min, Event.lon <= lon_max),
+                Event.lat == None,  # noqa: E711
+            )
         )
     event_stmt = event_stmt.limit(200)
     events_res = (await session.execute(event_stmt)).scalars().all()

@@ -1,9 +1,13 @@
-"""Yandex Afisha ingestor for Sevastopol/Simferopol."""
+"""Yandex Afisha ingestor for Sevastopol/Simferopol.
+
+Now uses AI-based extraction for accurate parsing instead of HTML selectors.
+"""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Iterable, Optional
+import json
 
 import structlog
 from selectolax.parser import HTMLParser
@@ -13,6 +17,7 @@ from tenacity import AsyncRetrying, retry, retry_if_exception_type, stop_after_a
 from app.core.services.quality import source_weight
 from app.db.dao.events import upsert_event
 from app.ingestors.normalize import clean_text, dedup_events, parse_date, parse_time
+from app.ingestors.ai_parser_base import parse_event_with_ai, enqueue_parsed_event
 
 
 logger = structlog.get_logger(module="ing.yandex_afisha")
@@ -42,49 +47,42 @@ async def fetch_events_html(city: str) -> str:
     return html
 
 
-def parse_list(html: str) -> list[dict[str, Any]]:
+def extract_event_nodes(html: str) -> list[dict[str, Any]]:
+    """Extract raw event card data from HTML for AI processing.
+
+    Instead of parsing specific fields, we extract complete event cards
+    with all their text content for AI to analyze.
+    """
     tree = HTMLParser(html)
     items: list[dict[str, Any]] = []
-    # Generic selectors; may need adjustments if markup changes
-    for node in tree.css("a\[href\][data-event-id], a.Link\[href\]"):
+
+    # Generic selectors for event cards
+    for node in tree.css("a[href][data-event-id], a.Link[href]"):
         href = node.attributes.get("href", "")
-        title_node = node.css_first("h3, h2, .EventTitle__title")
-        if not title_node:
+        if not href:
             continue
-        title = clean_text(title_node.text())
-        date_node = node.css_first("time")
-        date_str = clean_text(date_node.text()) if date_node else ""
-        time_node = node.css_first(".event-time, time .time")
-        time_str = clean_text(time_node.text()) if time_node else ""
-        venue_node = node.css_first(".place, .EventVenue__name, .event-place")
-        venue = clean_text(venue_node.text()) if venue_node else ""
-        addr_node = node.css_first(".address, .EventVenue__address")
-        addr = clean_text(addr_node.text()) if addr_node else None
-        price_node = node.css_first(".price, .EventPrice__price")
-        price_s = clean_text(price_node.text()) if price_node else ""
-        price_min = None
-        for tok in price_s.replace("₽", " ").split():
-            if tok.isdigit():
-                price_min = int(tok)
-                break
-        items.append(
-            {
-                "title": title,
-                "date": parse_date(date_str) or date.today(),
-                "time": parse_time(time_str),
-                "venue_name": venue or "",
-                "address": addr,
-                "price_min": price_min,
-                "href": href if href.startswith("http") else f"https://afisha.yandex.ru{href}",
-            }
-        )
+
+        # Extract all text from the card
+        card_text = clean_text(node.text())
+        if not card_text or len(card_text) < 20:
+            continue
+
+        # Get full URL
+        full_url = href if href.startswith("http") else f"https://afisha.yandex.ru{href}"
+
+        items.append({
+            "text": card_text,
+            "url": full_url,
+        })
+
+    logger.info("yandex.extracted_cards", count=len(items))
     return items
 
 
 async def ingest(city: str, session) -> int:
-    """Fetch, parse, normalize and save events for a city.
+    """Fetch, parse with AI, and queue events for a city.
 
-    Returns number of upserts.
+    Returns number of events queued.
     """
 
     html = None
@@ -92,29 +90,45 @@ async def ingest(city: str, session) -> int:
         with attempt:
             html = await fetch_events_html(city)
     assert html is not None
-    rows = parse_list(html)
-    rows = dedup_events(rows)
-    cnt = 0
-    for r in rows:
-        ev = await upsert_event(
-            session,
-            title=r["title"],
-            date_=r["date"],
-            time_=r.get("time"),
-            city=city,
-            venue_name=r.get("venue_name", ""),
-            address=r.get("address"),
-            lat=None,
-            lon=None,
-            price_min=r.get("price_min"),
-            price_max=None,
-            category="concert",
-            source="yandex",
-            source_url=r.get("href", ""),
-            quality_base=source_weight("yandex"),
-        )
-        cnt += 1
-    await session.commit()
-    logger.info("ingest.yandex.saved", city=city, count=cnt)
-    return cnt
+
+    # Extract event cards
+    event_cards = extract_event_nodes(html)
+
+    if not event_cards:
+        logger.warning("yandex.no_events_found", city=city)
+        return 0
+
+    logger.info("yandex.parsing_with_ai", city=city, total_cards=len(event_cards))
+
+    # Parse each event with AI
+    queued = 0
+    for card in event_cards:
+        try:
+            parsed = await parse_event_with_ai(
+                text=card["text"],
+                source_url=card["url"],
+                source_type="yandex_afisha",
+                city=city,
+                use_cache=True,
+            )
+
+            if not parsed:
+                continue
+
+            # Enqueue the parsed event
+            await enqueue_parsed_event(
+                parsed_event=parsed,
+                parser_name="yandex_afisha",
+                raw_text=card["text"],
+                image_url=None,
+            )
+
+            queued += 1
+
+        except Exception as e:
+            logger.error("yandex.event_process_error", url=card["url"], error=str(e))
+            continue
+
+    logger.info("yandex.import_complete", city=city, total=len(event_cards), queued=queued)
+    return queued
 

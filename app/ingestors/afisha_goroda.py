@@ -1,4 +1,7 @@
-"""Afisha 'goroda' style ingestor (generic parser)."""
+"""Afisha 'goroda' style ingestor (generic parser).
+
+Now uses AI-based extraction for accurate parsing.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +16,7 @@ from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 from app.core.services.quality import source_weight
 from app.db.dao.events import upsert_event
 from app.ingestors.normalize import clean_text, dedup_events, parse_date, parse_time
+from app.ingestors.migrate_html_parsers import ingest_generic_html_site
 
 
 logger = structlog.get_logger(module="ing.afisha_goroda")
@@ -75,32 +79,24 @@ def parse_list(html: str) -> list[dict[str, Any]]:
 
 
 async def ingest(city: str, session) -> int:
+    """Fetch and parse events using AI for a city."""
     html = None
     async for _ in AsyncRetrying(stop=stop_after_attempt(3), wait=wait_exponential_jitter(initial=1, max=10)):
         html = await fetch_html(city)
     assert html is not None
-    rows = dedup_events(parse_list(html))
-    cnt = 0
-    for r in rows:
-        await upsert_event(
-            session,
-            title=r["title"],
-            date_=r["date"],
-            time_=r.get("time"),
-            city=city,
-            venue_name=r.get("venue_name", ""),
-            address=None,
-            lat=None,
-            lon=None,
-            price_min=r.get("price_min"),
-            price_max=None,
-            category="other",
-            source="afisha_goroda",
-            source_url=r.get("href", ""),
-            quality_base=source_weight("afisha_goroda"),
-        )
-        cnt += 1
-    await session.commit()
-    logger.info("ingest.afisha_goroda.saved", city=city, count=cnt)
-    return cnt
+
+    # Get base URL for the city
+    base_url = CITY_URLS.get(city.strip().lower(), "")
+
+    # Use AI-based parsing
+    queued = await ingest_generic_html_site(
+        html=html,
+        city=city,
+        parser_name="afisha_goroda",
+        base_url=base_url,
+        card_selectors=["article", ".event-card", ".afisha-item"],
+    )
+
+    logger.info("afisha_goroda.complete", city=city, queued=queued)
+    return queued
 
