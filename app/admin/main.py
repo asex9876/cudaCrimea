@@ -1240,6 +1240,9 @@ async def ugc_list(request: Request, queue: str = "all", redis: aioredis.Redis =
     require_login(request)
     csrf = ensure_csrf(request)
 
+    # DEBUG: Check if route is being called
+    logger.info("ugc_route_called", queue=queue, user=request.headers.get("X-Remote-User"))
+
     # Fetch from queues based on filter
     items_raw = []
     if queue == "all":
