@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Time,
     UniqueConstraint,
+    Numeric,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -565,4 +566,20 @@ class TelegramChannel(Base):
         UniqueConstraint("username", name="uq_telegram_channels_username"),
         CheckConstraint("status IN ('active','paused','invalid','error')", name="ck_telegram_channels_status"),
         Index("ix_telegram_channels_status", "status"),
+    )
+
+
+class MonetizationSettings(Base):
+    """Dynamic monetization settings for placement pricing formula."""
+
+    __tablename__ = "monetization_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    setting_key: Mapped[str] = mapped_column(String(50), unique=True)
+    setting_value: Mapped[float] = mapped_column(Numeric(10, 2))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    updated_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("setting_key", name="uq_monetization_settings_key"),
     )
