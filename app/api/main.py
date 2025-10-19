@@ -21,13 +21,21 @@ from redis import asyncio as aioredis
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas import EventOut, PlaceOut, SearchResponse, AdvertiserOut, PlacementRequestOut
+from app.api.schemas import (
+    EventOut,
+    PlaceOut,
+    SearchResponse,
+    AdvertiserOut,
+    PlacementRequestOut,
+    MonetizedPlacementCreate,
+    MonetizedPlacementResponse,
+)
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.services.geo import distance_km, two_gis_deeplink, yandex_deeplink
 from app.core.services.ranking import score_event, score_place
 from app.core.services.monetization import MonetizationService, PlacementType
-from app.db.models import Event, Place, AdInteraction, UGCSubmission, EditorialPin, CuratedCard
+from app.db.models import Event, Place, AdInteraction, UGCSubmission, EditorialPin, CuratedCard, PlacementRequest, Advertiser
 from app.db.session import get_session
 from prometheus_fastapi_instrumentator import Instrumentator
 import sentry_sdk
@@ -838,6 +846,144 @@ async def get_audience_size(
     except Exception as e:
         logger.error("monetization.audience_size_error", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to calculate audience size")
+
+
+@app.post("/api/monetization/create-placement", response_model=MonetizedPlacementResponse)
+async def create_monetized_placement(
+    request: MonetizedPlacementCreate,
+    session: AsyncSession = Depends(get_session),
+) -> MonetizedPlacementResponse:
+    """Create a paid placement request with automatic price calculation.
+
+    This endpoint:
+    1. Validates targeting parameters
+    2. Calculates price using monetization formula
+    3. Creates placement request in 'pending' status
+    4. Creates or links advertiser account based on user_id
+    5. Returns pricing breakdown and payment instructions
+
+    Args:
+        request: Placement details
+        session: DB session
+
+    Returns:
+        MonetizedPlacementResponse with placement_id, calculated price, and payment info
+    """
+    monetization = MonetizationService(session)
+
+    try:
+        # Validate targeting requirements
+        if request.placement_type in ["broadcast_city", "broadcast_zone"]:
+            if not request.target_city:
+                raise HTTPException(
+                    status_code=400,
+                    detail="target_city is required for city and zone broadcasts"
+                )
+        if request.placement_type == "broadcast_zone":
+            if not request.target_zone:
+                raise HTTPException(
+                    status_code=400,
+                    detail="target_zone is required for zone broadcasts"
+                )
+
+        # Calculate event datetime for price calculation
+        from datetime import datetime, timezone
+        event_datetime = datetime.combine(request.event_date, dtime(12, 0))  # Default to noon
+        if request.event_time:
+            try:
+                # Parse time string (format: "HH:MM" or "HH:MM:SS")
+                time_parts = request.event_time.split(":")
+                hour = int(time_parts[0])
+                minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+                event_datetime = datetime.combine(request.event_date, dtime(hour, minute))
+            except:
+                pass  # Keep default noon time if parsing fails
+
+        # Make timezone-aware
+        event_datetime = event_datetime.replace(tzinfo=timezone.utc)
+
+        # Calculate price
+        price_data = await monetization.calculate_placement_price(
+            placement_type=request.placement_type,
+            event_datetime=event_datetime,
+            target_city=request.target_city,
+            target_zone=request.target_zone,
+        )
+
+        # Find or create advertiser based on user_id
+        advertiser_result = await session.execute(
+            select(Advertiser).where(Advertiser.telegram_user_id == request.user_id)
+        )
+        advertiser = advertiser_result.scalar_one_or_none()
+
+        if not advertiser:
+            # Create new advertiser account
+            advertiser = Advertiser(
+                telegram_user_id=request.user_id,
+                name=request.contact_name or f"User {request.user_id}",
+                contact_person=request.contact_name,
+                email=request.contact_email or f"user{request.user_id}@telegram.local",
+                phone=request.contact_phone,
+                balance=0,
+                notes=f"Auto-created from monetized placement request",
+            )
+            session.add(advertiser)
+            await session.flush()  # Get advertiser.id
+
+        # Create placement request
+        placement = PlacementRequest(
+            advertiser_id=advertiser.id,
+            event_id=request.event_id,
+            event_title=request.event_title,
+            event_date=request.event_date,
+            event_time=request.event_time,
+            event_description=request.event_description,
+            event_venue=request.event_venue,
+            event_address=request.event_address,
+            pricing_model="fixed",  # Monetized placements use fixed pricing
+            position="standard",
+            budget=int(price_data["price"] * 100),  # Convert rubles to kopecks
+            # Monetization fields
+            placement_type=request.placement_type,
+            target_city=request.target_city,
+            target_zone=request.target_zone,
+            calculated_price=price_data["price"],
+            audience_size=price_data["audience_size"],
+            conversion_rate=price_data["conversion_rate"],
+            time_coefficient=price_data["time_coefficient"],
+            status="pending",  # Awaiting payment
+        )
+        session.add(placement)
+        await session.commit()
+        await session.refresh(placement)
+
+        logger.info(
+            "monetization.placement_created",
+            placement_id=str(placement.id),
+            user_id=request.user_id,
+            placement_type=request.placement_type,
+            price=price_data["price"],
+            audience_size=price_data["audience_size"],
+        )
+
+        return MonetizedPlacementResponse(
+            placement_id=placement.id,
+            calculated_price=price_data["price"],
+            audience_size=price_data["audience_size"],
+            conversion_rate=price_data["conversion_rate"],
+            time_coefficient=price_data["time_coefficient"],
+            status="pending",
+            payment_required=True,
+            invoice_url=None,  # TODO: Generate payment link when payment system is integrated
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("monetization.create_placement_error", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create placement: {str(e)}")
 
 
 def run() -> None:

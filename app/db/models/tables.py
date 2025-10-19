@@ -198,12 +198,14 @@ class Advertiser(Base):
     phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Owner's notes
     balance: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # kopecks - prepaid balance
+    telegram_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Link to Telegram user
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
 
     __table_args__ = (
         Index("ix_advertisers_email", "email"),
+        Index("ix_advertisers_telegram_user_id", "telegram_user_id", unique=True),
     )
 
 

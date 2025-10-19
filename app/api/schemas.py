@@ -135,6 +135,43 @@ class PlacementRequestCreate(BaseModel):
     price_per_unit: Optional[int] = None  # for CPC/CPM
 
 
+class MonetizedPlacementCreate(BaseModel):
+    """Create monetized placement with auto price calculation."""
+
+    # Event info
+    event_id: Optional[UUID] = None  # Existing event or None for new
+    event_title: str = Field(min_length=1)
+    event_date: date
+    event_time: Optional[str] = None
+    event_description: Optional[str] = None
+    event_venue: Optional[str] = None
+    event_address: Optional[str] = None
+
+    # Monetization params
+    placement_type: str = Field(pattern='^(broadcast_all|broadcast_city|broadcast_zone|hot)$')
+    target_city: Optional[str] = None  # Required for city/zone
+    target_zone: Optional[str] = None  # Required for zone
+
+    # Requester info
+    user_id: int  # Telegram user ID
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+
+
+class MonetizedPlacementResponse(BaseModel):
+    """Response for created monetized placement."""
+
+    placement_id: UUID
+    calculated_price: float  # rubles
+    audience_size: int
+    conversion_rate: float
+    time_coefficient: float
+    status: str
+    payment_required: bool
+    invoice_url: Optional[str] = None
+
+
 class UGCSubmissionOut(BaseModel):
     """UGC submission response."""
 
