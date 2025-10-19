@@ -32,7 +32,8 @@ async def monetization_page(
     from fastapi.templating import Jinja2Templates
     from pathlib import Path
 
-    username = require_auth(request)
+    # HTTP Basic Auth handled by nginx, no session auth needed
+    username = request.headers.get("X-Remote-User", "admin")
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
     # Get all monetization settings
@@ -121,7 +122,7 @@ async def monetization_update_setting(
     session: AsyncSession = Depends(get_session),
 ) -> RedirectResponse:
     """Update a monetization setting."""
-    username = require_auth(request)
+    username = request.headers.get("X-Remote-User", "admin")
 
     try:
         monetization = MonetizationService(session)
@@ -150,7 +151,7 @@ async def monetization_placement_approve(
     session: AsyncSession = Depends(get_session),
 ) -> RedirectResponse:
     """Approve a pending placement request."""
-    username = require_auth(request)
+    username = request.headers.get("X-Remote-User", "admin")
 
     try:
         import uuid
@@ -189,7 +190,7 @@ async def monetization_placement_reject(
     session: AsyncSession = Depends(get_session),
 ) -> RedirectResponse:
     """Reject a pending placement request."""
-    username = require_auth(request)
+    username = request.headers.get("X-Remote-User", "admin")
 
     try:
         import uuid
