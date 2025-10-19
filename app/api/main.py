@@ -26,6 +26,7 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.services.geo import distance_km, two_gis_deeplink, yandex_deeplink
 from app.core.services.ranking import score_event, score_place
+from app.core.services.monetization import MonetizationService, PlacementType
 from app.db.models import Event, Place, AdInteraction, UGCSubmission, EditorialPin, CuratedCard
 from app.db.session import get_session
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -151,6 +152,31 @@ class UGCIn(BaseModel):
     form: Optional[dict[str, Any]] = None
     user_id: Optional[int] = None
     wants_paid_promotion: Optional[bool] = False
+
+
+class PlacementPriceRequest(BaseModel):
+    """Request to calculate placement price."""
+    placement_type: str = Field(..., pattern="^(broadcast_all|broadcast_city|broadcast_zone|hot)$")
+    event_datetime: datetime
+    target_city: Optional[str] = None
+    target_zone: Optional[str] = None
+
+
+class PlacementPriceResponse(BaseModel):
+    """Response with calculated placement price."""
+    price: float
+    cost_per_lead: float
+    audience_size: int
+    conversion_rate: float
+    time_coefficient: float
+    breakdown: str
+
+
+class MonetizationSettingUpdate(BaseModel):
+    """Update a monetization setting."""
+    setting_key: str
+    setting_value: float
+    updated_by: Optional[str] = None
 
 
 # --------- Helpers ---------
@@ -676,6 +702,142 @@ async def track_ad_interaction(
     logger.info("ad.interaction_tracked", event_id=str(eid), type=interaction_type, user_id=user_id)
 
     return {"tracked": True}
+
+
+# --------- Monetization Endpoints ---------
+
+
+@app.post("/api/monetization/calculate-price", response_model=PlacementPriceResponse)
+async def calculate_placement_price(
+    request: PlacementPriceRequest,
+    session: AsyncSession = Depends(get_session),
+) -> PlacementPriceResponse:
+    """Calculate placement price using dynamic formula.
+
+    Formula: Price = ((x * r) * y) * Q
+
+    Args:
+        request: Placement details (type, datetime, targeting)
+        session: DB session
+
+    Returns:
+        PlacementPriceResponse with calculated price and breakdown
+    """
+    monetization = MonetizationService(session)
+
+    try:
+        result = await monetization.calculate_placement_price(
+            placement_type=request.placement_type,
+            event_datetime=request.event_datetime,
+            target_city=request.target_city,
+            target_zone=request.target_zone,
+        )
+        logger.info(
+            "monetization.price_calculated",
+            placement_type=request.placement_type,
+            price=result["price"],
+            audience_size=result["audience_size"],
+        )
+        return PlacementPriceResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("monetization.calculation_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to calculate price")
+
+
+@app.get("/api/monetization/settings")
+async def get_monetization_settings(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get all monetization settings.
+
+    Returns:
+        Dictionary of setting_key -> setting_value
+    """
+    monetization = MonetizationService(session)
+    try:
+        settings_dict = await monetization.get_all_settings()
+        # Convert Decimal to float for JSON serialization
+        return {k: float(v) for k, v in settings_dict.items()}
+    except Exception as e:
+        logger.error("monetization.get_settings_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to get settings")
+
+
+@app.put("/api/monetization/settings")
+async def update_monetization_setting(
+    update: MonetizationSettingUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Update a monetization setting.
+
+    Args:
+        update: Setting key, value, and optional updated_by
+        session: DB session
+
+    Returns:
+        Success confirmation
+    """
+    monetization = MonetizationService(session)
+    try:
+        await monetization.update_setting(
+            key=update.setting_key,
+            value=update.setting_value,
+            updated_by=update.updated_by,
+        )
+        logger.info(
+            "monetization.setting_updated",
+            key=update.setting_key,
+            value=update.setting_value,
+            updated_by=update.updated_by,
+        )
+        return {"success": True, "setting_key": update.setting_key, "new_value": update.setting_value}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("monetization.update_setting_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update setting")
+
+
+@app.get("/api/monetization/audience-size")
+async def get_audience_size(
+    placement_type: str = Query(..., pattern="^(broadcast_all|broadcast_city|broadcast_zone|hot)$"),
+    target_city: Optional[str] = Query(None),
+    target_zone: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, int]:
+    """Get estimated audience size for targeting parameters.
+
+    Args:
+        placement_type: Type of broadcast
+        target_city: Optional city for targeting
+        target_zone: Optional zone for targeting
+        session: DB session
+
+    Returns:
+        {"audience_size": int}
+    """
+    monetization = MonetizationService(session)
+    try:
+        size = await monetization.get_audience_size(
+            placement_type=placement_type,
+            target_city=target_city,
+            target_zone=target_zone,
+        )
+        logger.info(
+            "monetization.audience_size_calculated",
+            placement_type=placement_type,
+            city=target_city,
+            zone=target_zone,
+            size=size,
+        )
+        return {"audience_size": size}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("monetization.audience_size_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to calculate audience size")
 
 
 def run() -> None:

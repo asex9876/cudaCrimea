@@ -1,2 +1,2 @@
-"""Core service utilities: geo, ranking, interests, quality."""
+"""Core service utilities: geo, ranking, interests, quality, monetization."""
 
