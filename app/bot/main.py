@@ -23,6 +23,7 @@ from .handlers.nav import router as nav_router
 from .handlers.change_city import router as change_city_router
 from .handlers.gallery import router as gallery_router
 from .handlers.ugc_form import router as ugc_form_router
+from .handlers.paid_placement import router as paid_placement_router
 
 
 settings = get_settings()
@@ -55,6 +56,7 @@ async def run_bot() -> None:
     dp.include_router(poll_router)
     # Register step-by-step UGC form before legacy UGC to take precedence
     dp.include_router(ugc_form_router)
+    dp.include_router(paid_placement_router)  # Paid placement flow
     dp.include_router(ugc_router)
     dp.include_router(actions_router)
     dp.include_router(nav_router)

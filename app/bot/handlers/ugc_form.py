@@ -544,6 +544,29 @@ async def form_paid_promotion(cb: CallbackQuery, state: FSMContext) -> None:
 
     wants_paid = choice == "yes"
 
+    if wants_paid:
+        # NEW: Redirect to paid placement flow with monetization
+        from app.bot.states import PaidPlacementStates
+
+        msg = """
+Выберите тип продвижения для вашего события:
+
+🌍 **Весь Крым** - охват всех пользователей (максимальная аудитория)
+🏙 **Мой город** - только пользователи вашего города (средний охват)
+📍 **Мой район** - пользователи вашего района (таргетированный охват)
+🔥 **Горящее** - срочная публикация в течение 2 часов (фиксированная цена)
+
+💡 *Цена рассчитывается автоматически на основе охвата и времени до события.*
+"""
+
+        from app.bot.handlers.paid_placement import placement_type_kb
+
+        await cb.message.edit_text(msg, reply_markup=placement_type_kb())
+        await state.set_state(PaidPlacementStates.choosing_type)
+        await cb.answer()
+        return
+
+    # Free placement - old logic
     form = {
         "title": data.get("title"),
         "date_iso": data.get("date_iso"),
@@ -560,7 +583,7 @@ async def form_paid_promotion(cb: CallbackQuery, state: FSMContext) -> None:
     payload = {
         "raw_text": f"FORM:{form}",
         "form": form,
-        "wants_paid_promotion": wants_paid,  # Flag for moderation queue
+        "wants_paid_promotion": False,
     }
     images = list(data.get("images", []))
     if images:
@@ -570,10 +593,7 @@ async def form_paid_promotion(cb: CallbackQuery, state: FSMContext) -> None:
 
     await api_ugc_submit(payload)  # type: ignore[arg-type]
 
-    if wants_paid:
-        msg = "✅ Заявка отправлена на модерацию в категорию платных размещений!\n\nМодератор свяжется с вами для согласования деталей и оплаты."
-    else:
-        msg = "✅ Заявка отправлена на модерацию!\n\nМы проверим её и опубликуем в ближайшее время."
+    msg = "✅ Заявка отправлена на модерацию!\n\nМы проверим её и опубликуем в ближайшее время."
 
     from app.bot.keyboards.common import main_menu_kb
 

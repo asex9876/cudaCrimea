@@ -39,3 +39,10 @@ class UGCFormStates(StatesGroup):
     adding_photos = State()
     confirming = State()
     choosing_paid_promotion = State()
+
+
+class PaidPlacementStates(StatesGroup):
+    """States for paid placement flow with monetization."""
+    choosing_type = State()
+    entering_zone = State()
+    confirming = State()
