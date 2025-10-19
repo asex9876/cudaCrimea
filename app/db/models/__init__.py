@@ -11,6 +11,7 @@ from .tables import (
     EventImage,
     LLMPrompt,
     LLMUsage,
+    MonetizationSettings,
     ParsedMessage,
     Place,
     PlacementRequest,
@@ -38,4 +39,5 @@ __all__ = [
     "LLMUsage",
     "BotSettings",
     "ParsedMessage",
+    "MonetizationSettings",
 ]
