@@ -80,7 +80,7 @@ class MonetizationService:
         Returns:
             Number of users that will receive the broadcast
         """
-        query = select(func.count(User.tg_id)).where(User.is_blocked == False)
+        query = select(func.count(User.tg_id))
 
         if placement_type == "broadcast_all":
             # All active users
