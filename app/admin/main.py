@@ -115,6 +115,12 @@ async def get_redis() -> aioredis.Redis:
 
 def require_login(request: Request) -> None:
     # Auto-authenticate if request passed through Nginx basic auth
+    # Check for X-Remote-User header set by nginx after HTTP Basic Auth
+    if request.headers.get("X-Remote-User"):
+        # User authenticated via nginx HTTP Basic Auth - skip session check
+        return
+
+    # Fallback to session-based auth for direct access (without nginx)
     if not request.session.get("auth") and request.headers.get("X-Forwarded-For"):
         request.session["auth"] = True
 
