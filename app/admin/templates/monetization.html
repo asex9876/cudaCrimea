@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="wrap">
+  <h1>💰 Монетизация</h1>
+
+  {% if request.query_params.get('success') %}
+  <div style="padding:1rem; background:#1d4ed8; border-radius:8px; margin-bottom:1rem;">
+    ✅ {{ request.query_params.get('success') }}
+  </div>
+  {% endif %}
+
+  {% if request.query_params.get('error') %}
+  <div style="padding:1rem; background:#dc2626; border-radius:8px; margin-bottom:1rem;">
+    ❌ {{ request.query_params.get('error') }}
+  </div>
+  {% endif %}
+
+  <!-- Statistics Overview -->
+  <div class="row mt1">
+    <div class="col">
+      <div class="card">
+        <h3>📊 Статистика размещений</h3>
+        <table>
+          <tr>
+            <td>Всего заявок:</td>
+            <td class="right"><strong>{{ stats.total_placements }}</strong></td>
+          </tr>
+          <tr>
+            <td>На модерации:</td>
+            <td class="right"><strong style="color:#f59e0b;">{{ stats.pending_placements }}</strong></td>
+          </tr>
+          <tr>
+            <td>Оплачено:</td>
+            <td class="right"><strong style="color:#10b981;">{{ stats.paid_placements }}</strong></td>
+          </tr>
+          <tr>
+            <td>Активных:</td>
+            <td class="right"><strong style="color:#3b82f6;">{{ stats.active_placements }}</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Общая выручка:</strong></td>
+            <td class="right"><strong style="color:#10b981; font-size:1.2rem;">{{ "%.2f"|format(stats.total_revenue) }} ₽</strong></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <h3>👥 Аудитория для таргетинга</h3>
+        <table>
+          <tr>
+            <td>Всего пользователей:</td>
+            <td class="right"><strong>{{ stats.total_users }}</strong></td>
+          </tr>
+          <tr>
+            <td>С указанным городом:</td>
+            <td class="right"><strong>{{ stats.users_with_city }}</strong> ({{ "%.1f"|format(stats.users_with_city / stats.total_users * 100 if stats.total_users > 0 else 0) }}%)</td>
+          </tr>
+          <tr>
+            <td>С указанным районом:</td>
+            <td class="right"><strong>{{ stats.users_with_zone }}</strong> ({{ "%.1f"|format(stats.users_with_zone / stats.total_users * 100 if stats.total_users > 0 else 0) }}%)</td>
+          </tr>
+        </table>
+
+        {% if city_distribution %}
+        <h4 style="margin-top:1rem; margin-bottom:0.5rem;">Топ-10 городов:</h4>
+        <table>
+          {% for city in city_distribution %}
+          <tr>
+            <td>{{ city.city }}</td>
+            <td class="right"><strong>{{ city.count }}</strong> чел.</td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing Settings -->
+  <div class="card mt1">
+    <h2>⚙️ Настройки ценообразования</h2>
+    <p class="muted">Формула: <code>Цена = ((x * r) * y) * Q</code></p>
+
+    <h3 style="margin-top:1.5rem;">Базовые параметры</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Параметр</th>
+          <th>Текущее значение</th>
+          <th>Описание</th>
+          <th>Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>cost_per_lead</strong> (x)</td>
+          <td>{{ "%.2f"|format(settings.get('cost_per_lead', 0)) }} ₽</td>
+          <td class="muted">Стоимость одного лида</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="cost_per_lead">
+              <input type="number" name="setting_value" step="0.01" value="{{ settings.get('cost_per_lead', 0) }}" style="width:100px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:1.5rem;">Конверсии (y)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Тип таргетинга</th>
+          <th>Конверсия (%)</th>
+          <th>Описание</th>
+          <th>Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>conversion_general</strong></td>
+          <td>{{ "%.2f"|format(settings.get('conversion_general', 0)) }}%</td>
+          <td class="muted">Весь Крым (широкий охват)</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="conversion_general">
+              <input type="number" name="setting_value" step="0.01" value="{{ settings.get('conversion_general', 0) }}" style="width:100px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td><strong>conversion_city</strong></td>
+          <td>{{ "%.2f"|format(settings.get('conversion_city', 0)) }}%</td>
+          <td class="muted">Город (средний охват)</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="conversion_city">
+              <input type="number" name="setting_value" step="0.01" value="{{ settings.get('conversion_city', 0) }}" style="width:100px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td><strong>conversion_zone</strong></td>
+          <td>{{ "%.2f"|format(settings.get('conversion_zone', 0)) }}%</td>
+          <td class="muted">Район (узкий охват, максимальная конверсия)</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="conversion_zone">
+              <input type="number" name="setting_value" step="0.01" value="{{ settings.get('conversion_zone', 0) }}" style="width:100px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:1.5rem;">Коэффициенты срочности (Q)</h3>
+    <p class="muted">Множитель в зависимости от времени до события</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Время до события</th>
+          <th>Коэффициент Q</th>
+          <th>Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>&lt; 2 часов (срочно!)</td>
+          <td>{{ "%.1f"|format(settings.get('q_less_2h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_less_2h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_less_2h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>2-6 часов</td>
+          <td>{{ "%.1f"|format(settings.get('q_2h_6h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_2h_6h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_2h_6h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>6-12 часов</td>
+          <td>{{ "%.1f"|format(settings.get('q_6h_12h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_6h_12h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_6h_12h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>12-24 часа</td>
+          <td>{{ "%.1f"|format(settings.get('q_12h_24h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_12h_24h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_12h_24h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>24-30 часов</td>
+          <td>{{ "%.1f"|format(settings.get('q_24h_30h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_24h_30h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_24h_30h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>30-36 часов</td>
+          <td>{{ "%.1f"|format(settings.get('q_30h_36h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_30h_36h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_30h_36h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>36-48 часов</td>
+          <td>{{ "%.1f"|format(settings.get('q_36h_48h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_36h_48h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_36h_48h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>&gt; 48 часов (заранее)</td>
+          <td>{{ "%.1f"|format(settings.get('q_more_48h', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_more_48h">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_more_48h', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>🔥 Горящее размещение</td>
+          <td>{{ "%.1f"|format(settings.get('q_hot', 0)) }}</td>
+          <td>
+            <form method="post" action="/monetization/update-setting" style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="hidden" name="setting_key" value="q_hot">
+              <input type="number" name="setting_value" step="0.1" value="{{ settings.get('q_hot', 0) }}" style="width:80px;">
+              <button class="btn" type="submit">💾</button>
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Recent Placements -->
+  {% if recent_placements %}
+  <div class="card mt1">
+    <h2>📋 Последние заявки на размещение</h2>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Событие</th>
+            <th>Тип</th>
+            <th>Охват</th>
+            <th>Цена</th>
+            <th>Статус</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in recent_placements %}
+          <tr>
+            <td class="muted">{{ p.created_at.strftime('%d.%m %H:%M') }}</td>
+            <td>
+              <strong>{{ p.event_title }}</strong><br>
+              <span class="muted">{{ p.event_date }}</span>
+            </td>
+            <td>
+              {% if p.placement_type == 'broadcast_all' %}🌍 Весь Крым
+              {% elif p.placement_type == 'broadcast_city' %}🏙 {{ p.target_city or 'Город' }}
+              {% elif p.placement_type == 'broadcast_zone' %}📍 {{ p.target_zone or 'Район' }}
+              {% elif p.placement_type == 'hot' %}🔥 Горящее
+              {% else %}-{% endif %}
+            </td>
+            <td class="right">{{ p.audience_size or '-' }} чел.</td>
+            <td class="right"><strong>{{ "%.2f"|format(p.calculated_price) if p.calculated_price else '-' }} ₽</strong></td>
+            <td>
+              {% if p.status == 'pending' %}<span style="color:#f59e0b;">⏳ На модерации</span>
+              {% elif p.status == 'approved' %}<span style="color:#10b981;">✅ Одобрено</span>
+              {% elif p.status == 'paid' %}<span style="color:#3b82f6;">💳 Оплачено</span>
+              {% elif p.status == 'active' %}<span style="color:#10b981;">🚀 Активно</span>
+              {% elif p.status == 'completed' %}<span style="color:#6b7280;">✔️ Завершено</span>
+              {% elif p.status == 'rejected' %}<span style="color:#dc2626;">❌ Отклонено</span>
+              {% else %}{{ p.status }}{% endif %}
+            </td>
+            <td>
+              {% if p.status == 'pending' %}
+              <form method="post" action="/monetization/placement-approve" style="display:inline;">
+                <input type="hidden" name="placement_id" value="{{ p.id }}">
+                <button class="btn" type="submit" style="padding:0.2rem 0.5rem; font-size:0.85rem;">✅ Одобрить</button>
+              </form>
+              <button onclick="showRejectModal('{{ p.id }}')" class="btn" style="padding:0.2rem 0.5rem; font-size:0.85rem; margin-left:0.5rem;">❌ Отклонить</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Reject Modal -->
+<div id="reject-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border-radius:12px; padding:1.5rem; max-width:500px; width:90%;">
+    <h3>Отклонить заявку</h3>
+    <form method="post" action="/monetization/placement-reject">
+      <input type="hidden" name="placement_id" id="reject-placement-id">
+      <label style="display:block; margin:1rem 0 0.5rem;">Причина отклонения:</label>
+      <textarea name="reject_reason" rows="4" placeholder="Укажите причину отклонения..." required></textarea>
+      <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+        <button type="submit" class="btn" style="background:#dc2626;">Отклонить</button>
+        <button type="button" class="btn" onclick="hideRejectModal()">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showRejectModal(placementId) {
+  document.getElementById('reject-placement-id').value = placementId;
+  document.getElementById('reject-modal').style.display = 'flex';
+}
+
+function hideRejectModal() {
+  document.getElementById('reject-modal').style.display = 'none';
+}
+</script>
+
+{% endblock %}

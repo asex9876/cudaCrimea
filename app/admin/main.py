@@ -96,6 +96,15 @@ app.post("/telegram-channels/add")(telegram_channel_routes.add_telegram_channel)
 app.post("/telegram-channels/delete")(telegram_channel_routes.delete_telegram_channel)
 app.get("/telegram-channels/list")(telegram_channel_routes.list_telegram_channels)
 
+# Import Monetization routes
+from app.admin import monetization_routes
+
+# Register Monetization routes
+app.get("/monetization", response_class=HTMLResponse)(monetization_routes.monetization_page)
+app.post("/monetization/update-setting")(monetization_routes.monetization_update_setting)
+app.post("/monetization/placement-approve")(monetization_routes.monetization_placement_approve)
+app.post("/monetization/placement-reject")(monetization_routes.monetization_placement_reject)
+
 
 # ------------------ Helpers ------------------
 
