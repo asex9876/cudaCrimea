@@ -146,6 +146,7 @@ def check_csrf(request: Request, token: str) -> None:
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> Any:
+    logger.info("home_route_called", path=request.url.path, user=request.headers.get("X-Remote-User"))
     return templates.TemplateResponse(
         "index.html",
         {"request": request, "app_name": settings.app_name, "env": settings.env},
