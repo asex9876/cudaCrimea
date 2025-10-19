@@ -44,6 +44,17 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
+    is_blocked: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+
+    # Geolocation for targeting (NEW in monetization system)
+    zone: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # District/zone in city
+    lat: Mapped[Optional[float]] = mapped_column(Numeric(10, 8), nullable=True)  # User location latitude
+    lon: Mapped[Optional[float]] = mapped_column(Numeric(11, 8), nullable=True)  # User location longitude
+    location_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_users_city_zone", "city", "zone"),
+    )
 
 
 class Event(Base):
@@ -225,6 +236,15 @@ class PlacementRequest(Base):
     budget: Mapped[int] = mapped_column(Integer)  # kopecks
     price_per_unit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # for CPC/CPM (kopecks)
 
+    # NEW: Monetization system fields
+    placement_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # 'broadcast_all', 'broadcast_city', 'broadcast_zone', 'hot'
+    target_city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # City for targeting
+    target_zone: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Zone/district for targeting
+    calculated_price: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)  # Auto-calculated price using formula
+    audience_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Number of users in target audience
+    conversion_rate: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)  # Applied conversion rate (%)
+    time_coefficient: Mapped[Optional[float]] = mapped_column(Numeric(3, 1), nullable=True)  # Applied time coefficient (Q)
+
     # Status workflow
     status: Mapped[str] = mapped_column(String, server_default=text("'pending'"))
     # 'pending' -> 'approved' -> 'paid' -> 'active' -> 'completed' | 'rejected'
@@ -253,6 +273,10 @@ class PlacementRequest(Base):
         CheckConstraint(
             "status IN ('pending','approved','rejected','paid','active','completed')",
             name="ck_placement_status",
+        ),
+        CheckConstraint(
+            "placement_type IS NULL OR placement_type IN ('broadcast_all','broadcast_city','broadcast_zone','hot')",
+            name="ck_placement_requests_type",
         ),
         Index("ix_placement_requests_status", "status"),
         Index("ix_placement_requests_advertiser", "advertiser_id"),
