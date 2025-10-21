@@ -5,13 +5,15 @@ from typing import Collection
 from app.core import runtime_config as rc
 
 
-def cities_kb() -> ReplyKeyboardMarkup:
+def cities_kb(with_cancel: bool = False) -> ReplyKeyboardMarkup:
     rows = [
         [KeyboardButton(text="Севастополь"), KeyboardButton(text="Симферополь")],
         [KeyboardButton(text="Ялта"), KeyboardButton(text="Евпатория")],
         [KeyboardButton(text="Феодосия"), KeyboardButton(text="Керчь")],
         [KeyboardButton(text="Алушта"), KeyboardButton(text="Судак")],
     ]
+    if with_cancel:
+        rows.append([KeyboardButton(text="❌ Отмена")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, one_time_keyboard=True)
 
 
@@ -20,7 +22,7 @@ def request_location_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, one_time_keyboard=True)
 
 
-def when_kb() -> InlineKeyboardMarkup:
+def when_kb(with_back: bool = False) -> InlineKeyboardMarkup:
     """Keyboard for date selection with 'Hot' events option."""
     buttons = [
         # Hot events - today's events that are still accessible
@@ -40,6 +42,8 @@ def when_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="В этом месяце", callback_data="when:this_month"),
         ],
     ]
+    if with_back:
+        buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="wtd:back")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -54,13 +58,15 @@ INTEREST_CATEGORIES: list[tuple[str, str]] = [
 ]
 
 
-def interests_kb(selected: Collection[str] | None = None) -> InlineKeyboardMarkup:
+def interests_kb(selected: Collection[str] | None = None, with_back: bool = False) -> InlineKeyboardMarkup:
     selected_set = set(selected or [])
     rows = []
     for label, slug in INTEREST_CATEGORIES:
         checkmark = "✅ " if slug in selected_set else ""
         rows.append([InlineKeyboardButton(text=f"{checkmark}{label}", callback_data=f"int:{slug}")])
     rows.append([InlineKeyboardButton(text="Готово", callback_data="int:done")])
+    if with_back:
+        rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="wtd:back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

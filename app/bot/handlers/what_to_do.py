@@ -25,6 +25,13 @@ def _budget_prompt_text(error: bool = False) -> str:
     return base
 
 
+def _budget_kb() -> InlineKeyboardMarkup:
+    """Keyboard for budget input with Back button."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="wtd:back")]
+    ])
+
+
 async def _wtd_ui_update(
     bot,
     state: FSMContext,
@@ -58,12 +65,12 @@ async def _wtd_ui_update(
         logger.info("wtd.ui.sent_new_instead", msg_id=m.message_id)
 
 
-def _render_interests_prompt(selected: set[str]) -> tuple[str, InlineKeyboardMarkup]:
+def _render_interests_prompt(selected: set[str], with_back: bool = True) -> tuple[str, InlineKeyboardMarkup]:
     selected_names = [label for label, slug in INTEREST_CATEGORIES if slug in selected]
     prompt = "Выберите интересы (можно несколько), затем нажмите «Готово»"
     if selected_names:
         prompt += "\n\nВыбрано: " + ", ".join(selected_names)
-    return prompt, interests_kb(selected)
+    return prompt, interests_kb(selected, with_back=with_back)
 
 
 def _prepare_event(raw: dict[str, Any]) -> dict[str, Any]:
@@ -173,7 +180,7 @@ async def choose_when(cb: CallbackQuery, state: FSMContext) -> None:
 
     # For other options, continue with budget selection
     await state.set_state(WhatToDoStates.entering_budget)
-    await _wtd_ui_update(cb.message.bot, state, cb.message.chat.id, _budget_prompt_text())
+    await _wtd_ui_update(cb.message.bot, state, cb.message.chat.id, _budget_prompt_text(), _budget_kb())
     await cb.answer()
 
 
@@ -193,7 +200,7 @@ async def enter_budget_invalid(message: Message, state: FSMContext) -> None:
     chat = message.chat
     if not chat:
         return
-    await _wtd_ui_update(message.bot, state, chat.id, _budget_prompt_text(error=True))
+    await _wtd_ui_update(message.bot, state, chat.id, _budget_prompt_text(error=True), _budget_kb())
 
 
 @router.callback_query(WhatToDoStates.choosing_interests, F.data.startswith("int:"))
@@ -268,3 +275,38 @@ async def results_prev(cb: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == "wtd:noop")
 async def results_noop(cb: CallbackQuery) -> None:
     await cb.answer()
+
+
+@router.callback_query(F.data == "wtd:back")
+async def wtd_back(cb: CallbackQuery, state: FSMContext) -> None:
+    """Handle Back button in what-to-do flow."""
+    if not cb.message or not cb.message.chat:
+        await cb.answer()
+        return
+
+    current_state = await state.get_state()
+    chat_id = cb.message.chat.id
+
+    # Budget -> When
+    if current_state == WhatToDoStates.entering_budget:
+        await state.set_state(WhatToDoStates.choosing_when)
+        await _wtd_ui_update(cb.message.bot, state, chat_id, "Когда пойдём?", when_kb())
+        await cb.answer("⬅️ Возврат к выбору даты")
+
+    # Interests -> Budget
+    elif current_state == WhatToDoStates.choosing_interests:
+        await state.set_state(WhatToDoStates.entering_budget)
+        await _wtd_ui_update(cb.message.bot, state, chat_id, _budget_prompt_text(), _budget_kb())
+        await cb.answer("⬅️ Возврат к вводу бюджета")
+
+    # Results -> Interests
+    elif current_state == WhatToDoStates.showing_results:
+        data = await state.get_data()
+        selected = set(data.get("interests", []))
+        text, kb = _render_interests_prompt(selected)
+        await state.set_state(WhatToDoStates.choosing_interests)
+        await _wtd_ui_update(cb.message.bot, state, chat_id, text, kb)
+        await cb.answer("⬅️ Возврат к выбору интересов")
+
+    else:
+        await cb.answer()

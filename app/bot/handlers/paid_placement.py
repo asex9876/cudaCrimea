@@ -33,6 +33,7 @@ def confirm_placement_kb() -> InlineKeyboardMarkup:
     """Keyboard for confirming placement purchase."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Подтвердить и оплатить", callback_data="placement:confirm")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="placement:back")],
         [InlineKeyboardButton(text="✖️ Отмена", callback_data="placement:cancel")],
     ])
 
@@ -334,12 +335,16 @@ async def cancel_placement(cb: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "placement:back")
 async def back_to_type_selection(cb: CallbackQuery, state: FSMContext) -> None:
-    """Go back to placement type selection."""
+    """Go back to previous step in placement flow."""
     if not cb.message:
         await cb.answer()
         return
 
-    msg = """
+    current_state = await state.get_state()
+
+    # From entering_zone -> back to choosing_type
+    if current_state == PaidPlacementStates.entering_zone:
+        msg = """
 Выберите тип продвижения для вашего события:
 
 🌍 **Весь Крым** - охват всех пользователей
@@ -347,7 +352,23 @@ async def back_to_type_selection(cb: CallbackQuery, state: FSMContext) -> None:
 📍 **Мой район** - пользователи вашего района
 🔥 **Горящее** - срочная публикация (фиксированная цена)
 """
+        await cb.message.edit_text(msg, reply_markup=placement_type_kb())
+        await state.set_state(PaidPlacementStates.choosing_type)
+        await cb.answer("⬅️ Возврат к выбору типа размещения")
 
-    await cb.message.edit_text(msg, reply_markup=placement_type_kb())
-    await state.set_state(PaidPlacementStates.choosing_type)
-    await cb.answer()
+    # From confirming -> back to choosing_type
+    elif current_state == PaidPlacementStates.confirming:
+        msg = """
+Выберите тип продвижения для вашего события:
+
+🌍 **Весь Крым** - охват всех пользователей
+🏙 **Мой город** - только пользователи вашего города
+📍 **Мой район** - пользователи вашего района
+🔥 **Горящее** - срочная публикация (фиксированная цена)
+"""
+        await cb.message.edit_text(msg, reply_markup=placement_type_kb())
+        await state.set_state(PaidPlacementStates.choosing_type)
+        await cb.answer("⬅️ Возврат к выбору типа размещения")
+
+    else:
+        await cb.answer()
