@@ -609,3 +609,26 @@ class MonetizationSettings(Base):
     __table_args__ = (
         UniqueConstraint("setting_key", name="uq_monetization_settings_key"),
     )
+
+
+class GeocodingCache(Base):
+    """Cache for geocoded addresses to minimize API calls.
+
+    Stores results from Nominatim geocoding API with coordinates and district info.
+    """
+
+    __tablename__ = "geocoding_cache"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    query: Mapped[str] = mapped_column(String(500), unique=True, index=True)  # Normalized query string
+    lat: Mapped[float] = mapped_column(Numeric(10, 8))  # Latitude
+    lon: Mapped[float] = mapped_column(Numeric(11, 8))  # Longitude
+    district: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # District/neighborhood
+    raw_response: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)  # Full API response
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        Index("ix_geocoding_cache_query", "query"),
+    )

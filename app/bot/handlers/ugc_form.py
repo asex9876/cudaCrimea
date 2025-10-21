@@ -14,6 +14,8 @@ from app.bot.client import api_ugc_submit
 from app.bot.keyboards.common import cities_kb, interests_kb, request_location_kb
 from app.bot.states import UGCFormStates
 from app.core.config import get_settings
+from app.core.services.geocoding import GeocodingService
+from app.db.session import get_session
 
 
 router = Router()
@@ -173,7 +175,48 @@ async def form_city(message: Message, state: FSMContext) -> None:
 async def form_location(message: Message, state: FSMContext) -> None:
     loc = message.location
     if loc:
-        await state.update_data(lat=loc.latitude, lon=loc.longitude)
+        # Try reverse geocoding to get district
+        async for session in get_session():
+            try:
+                geocoding_service = GeocodingService(session)
+                address_info = await geocoding_service.reverse_geocode(
+                    loc.latitude, loc.longitude
+                )
+
+                if address_info:
+                    district = address_info.get("district")
+                    road = address_info.get("road")
+                    house_number = address_info.get("house_number")
+
+                    # Build address string
+                    address_parts = []
+                    if road:
+                        address_parts.append(road)
+                    if house_number:
+                        address_parts.append(house_number)
+                    address_str = ", ".join(address_parts) if address_parts else None
+
+                    await state.update_data(
+                        lat=loc.latitude,
+                        lon=loc.longitude,
+                        district=district,
+                        address=address_str
+                    )
+
+                    # Notify user
+                    if district:
+                        await message.answer(f"✅ Район определен: {district}")
+                else:
+                    await state.update_data(lat=loc.latitude, lon=loc.longitude)
+                    await message.answer("✅ Геолокация сохранена")
+
+            except Exception as e:
+                # If reverse geocoding fails, still save coordinates
+                await state.update_data(lat=loc.latitude, lon=loc.longitude)
+                import structlog
+                logger = structlog.get_logger()
+                logger.error("ugc_form.reverse_geocoding_error", lat=loc.latitude, lon=loc.longitude, error=str(e))
+
     await state.set_state(UGCFormStates.entering_price_min)
     data = await state.get_data()
     stack = list(data.get("_flow_stack", []))
@@ -185,9 +228,41 @@ async def form_location(message: Message, state: FSMContext) -> None:
 @router.message(UGCFormStates.entering_address, F.text)
 async def form_address_text(message: Message, state: FSMContext) -> None:
     addr = (message.text or "").strip()
-    await state.update_data(address=addr)
-    await state.set_state(UGCFormStates.entering_price_min)
     data = await state.get_data()
+    city = data.get("city", "Севастополь")
+
+    # Try to geocode the address
+    async for session in get_session():
+        try:
+            geocoding_service = GeocodingService(session)
+            result = await geocoding_service.geocode_address(addr, city)
+
+            if result:
+                lat, lon, district = result
+                await state.update_data(
+                    address=addr,
+                    lat=lat,
+                    lon=lon,
+                    district=district
+                )
+                # Notify user about successful geocoding
+                if district:
+                    await message.answer(f"✅ Адрес определен: {district}")
+                else:
+                    await message.answer(f"✅ Координаты определены")
+            else:
+                # Geocoding failed, but still save the address
+                await state.update_data(address=addr)
+                await message.answer("⚠️ Не удалось определить точные координаты, но адрес сохранен")
+
+        except Exception as e:
+            # If geocoding fails, still save the address
+            await state.update_data(address=addr)
+            import structlog
+            logger = structlog.get_logger()
+            logger.error("ugc_form.geocoding_error", address=addr, error=str(e))
+
+    await state.set_state(UGCFormStates.entering_price_min)
     stack = list(data.get("_flow_stack", []))
     stack.append("entering_price_min")
     await state.update_data(_flow_stack=stack)

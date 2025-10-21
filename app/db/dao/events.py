@@ -98,3 +98,60 @@ async def upsert_event(
     logger.info("event.insert", title=title)
     return ev
 
+
+async def find_events_nearby(
+    session: AsyncSession,
+    lat: float,
+    lon: float,
+    radius_km: float = 5.0,
+    limit: int = 50,
+) -> list[Event]:
+    """Find events within a radius from coordinates using Haversine formula.
+
+    Args:
+        session: DB session.
+        lat: Center latitude.
+        lon: Center longitude.
+        radius_km: Search radius in kilometers (default: 5 km).
+        limit: Maximum number of events to return.
+
+    Returns:
+        List of events sorted by distance (closest first).
+    """
+    from app.core.services.geo import distance_km
+    from datetime import datetime
+
+    # First, get all events with coordinates from today onwards
+    today = datetime.now().date()
+    stmt = select(Event).where(
+        and_(
+            Event.lat.isnot(None),
+            Event.lon.isnot(None),
+            Event.date >= today,
+        )
+    )
+    result = await session.execute(stmt)
+    all_events = result.scalars().all()
+
+    # Filter by distance and sort
+    events_with_distance = []
+    for event in all_events:
+        if event.lat is not None and event.lon is not None:
+            dist = distance_km(lat, lon, float(event.lat), float(event.lon))
+            if dist <= radius_km:
+                events_with_distance.append((dist, event))
+
+    # Sort by distance and limit
+    events_with_distance.sort(key=lambda x: x[0])
+    nearby_events = [event for _, event in events_with_distance[:limit]]
+
+    logger.info(
+        "events.nearby_search",
+        lat=lat,
+        lon=lon,
+        radius_km=radius_km,
+        found=len(nearby_events),
+    )
+
+    return nearby_events
+
