@@ -59,91 +59,106 @@ class GeocodingService:
         Returns:
             Tuple of (latitude, longitude, district) or None if not found.
         """
-        # Build full query
-        query_parts = [address]
+        # Build queries to try - try with Крым first, then without if that fails
+        query_variants = []
+
+        # Try with "Крым"
+        query_parts_with_region = [address]
         if city:
-            query_parts.append(city)
-        query_parts.append("Крым")
-        full_query = ", ".join(query_parts)
+            query_parts_with_region.append(city)
+        query_parts_with_region.append("Крым")
+        query_with_region = ", ".join(query_parts_with_region)
+        query_variants.append(query_with_region)
 
-        # Check cache first
-        cache_key = full_query.lower().strip()
-        cached = await self.session.execute(
-            select(GeocodingCache).where(GeocodingCache.query == cache_key)
-        )
-        cached_result = cached.scalar_one_or_none()
+        # Try without "Крым" as fallback (for addresses Nominatim has in Ukraine)
+        if city:
+            query_without_region = f"{address}, {city}"
+            query_variants.append(query_without_region)
 
-        if cached_result:
-            logger.info("geocoding.cache_hit", query=cache_key)
-            return (
-                float(cached_result.lat),
-                float(cached_result.lon),
-                cached_result.district,
+        # Try each query variant
+        for query_to_try in query_variants:
+            # Check cache first
+            cache_key = query_to_try.lower().strip()
+            cached = await self.session.execute(
+                select(GeocodingCache).where(GeocodingCache.query == cache_key)
             )
+            cached_result = cached.scalar_one_or_none()
 
-        # Not in cache - call Nominatim
-        logger.info("geocoding.api_call", query=full_query)
-        await self._rate_limit()
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                # Use Nominatim API
-                url = "https://nominatim.openstreetmap.org/search"
-                params = {
-                    "q": full_query,
-                    "format": "json",
-                    "addressdetails": "1",
-                    "limit": "1",
-                }
-                headers = {
-                    "User-Agent": "CudaCrimea/1.0 (Event aggregator bot)",
-                }
-
-                response = await client.get(url, params=params, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-
-                if not data or len(data) == 0:
-                    logger.warning("geocoding.not_found", query=full_query)
-                    return None
-
-                result = data[0]
-                lat = float(result["lat"])
-                lon = float(result["lon"])
-
-                # Extract district from address details
-                address_details = result.get("address", {})
-                district = (
-                    address_details.get("suburb")
-                    or address_details.get("neighbourhood")
-                    or address_details.get("district")
-                    or address_details.get("quarter")
+            if cached_result:
+                logger.info("geocoding.cache_hit", query=cache_key)
+                return (
+                    float(cached_result.lat),
+                    float(cached_result.lon),
+                    cached_result.district,
                 )
 
-                # Cache the result
-                cache_entry = GeocodingCache(
-                    query=cache_key,
-                    lat=lat,
-                    lon=lon,
-                    district=district,
-                    raw_response=result,
-                )
-                self.session.add(cache_entry)
-                await self.session.commit()
+            # Not in cache - call Nominatim
+            logger.info("geocoding.api_call", query=query_to_try)
+            await self._rate_limit()
 
-                logger.info(
-                    "geocoding.success",
-                    query=full_query,
-                    lat=lat,
-                    lon=lon,
-                    district=district,
-                )
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    # Use Nominatim API
+                    url = "https://nominatim.openstreetmap.org/search"
+                    params = {
+                        "q": query_to_try,
+                        "format": "json",
+                        "addressdetails": "1",
+                        "limit": "1",
+                    }
+                    headers = {
+                        "User-Agent": "CudaCrimea/1.0 (Event aggregator bot)",
+                    }
 
-                return (lat, lon, district)
+                    response = await client.get(url, params=params, headers=headers)
+                    response.raise_for_status()
+                    data = response.json()
 
-        except Exception as e:
-            logger.error("geocoding.error", query=full_query, error=str(e))
-            return None
+                    if not data or len(data) == 0:
+                        logger.warning("geocoding.not_found", query=query_to_try)
+                        continue  # Try next variant
+
+                    result = data[0]
+                    lat = float(result["lat"])
+                    lon = float(result["lon"])
+
+                    # Extract district from address details
+                    address_details = result.get("address", {})
+                    district = (
+                        address_details.get("suburb")
+                        or address_details.get("neighbourhood")
+                        or address_details.get("district")
+                        or address_details.get("quarter")
+                    )
+
+                    # Cache the result
+                    cache_entry = GeocodingCache(
+                        query=cache_key,
+                        lat=lat,
+                        lon=lon,
+                        district=district,
+                        raw_response=result,
+                    )
+                    self.session.add(cache_entry)
+                    await self.session.commit()
+
+                    logger.info(
+                        "geocoding.success",
+                        query=query_to_try,
+                        lat=lat,
+                        lon=lon,
+                        district=district,
+                    )
+
+                    return (lat, lon, district)
+
+            except Exception as e:
+                logger.error("geocoding.error", query=query_to_try, error=str(e))
+                continue  # Try next variant
+
+        # All variants failed
+        logger.warning("geocoding.all_variants_failed", address=address, city=city)
+        return None
 
     async def reverse_geocode(
         self, lat: float, lon: float
