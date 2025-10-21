@@ -24,6 +24,7 @@ from .handlers.change_city import router as change_city_router
 from .handlers.gallery import router as gallery_router
 from .handlers.ugc_form import router as ugc_form_router
 from .handlers.paid_placement import router as paid_placement_router
+from .handlers.events_nearby import router as events_nearby_router
 
 
 settings = get_settings()
@@ -53,6 +54,7 @@ async def run_bot() -> None:
     dp.include_router(start_router)
     dp.include_router(food_router)
     dp.include_router(wtd_router)
+    dp.include_router(events_nearby_router)  # Events near me
     dp.include_router(poll_router)
     # Register step-by-step UGC form before legacy UGC to take precedence
     dp.include_router(ugc_form_router)

@@ -650,6 +650,7 @@ async def form_paid_promotion(cb: CallbackQuery, state: FSMContext) -> None:
         "address": data.get("address"),
         "lat": data.get("lat"),
         "lon": data.get("lon"),
+        "district": data.get("district"),  # Auto-detected district from geocoding
         "price_min": data.get("price_min"),
         "price_max": data.get("price_max"),
         "category": data.get("category"),

@@ -1393,10 +1393,12 @@ async def ugc_approve(request: Request, raw: str = Form(...), csrf: str = Form(.
         # City is not part of EventDraft; we don't store it directly in Event
         lat = form.get("lat")
         lon = form.get("lon")
+        district = form.get("district")
     else:
         draft = extract_event_fields(raw_text, source_url)
         lat = None
         lon = None
+        district = None
     if not draft.title or not draft.date_iso:
         return RedirectResponse("/ugc?error=invalid", status_code=302)
 
@@ -1417,6 +1419,7 @@ async def ugc_approve(request: Request, raw: str = Form(...), csrf: str = Form(.
         address=draft.address,
         lat=lat,
         lon=lon,
+        district=district,
         price_min=draft.price_min,
         price_max=draft.price_max,
         category=draft.category or "other",

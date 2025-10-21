@@ -989,6 +989,79 @@ async def create_monetized_placement(
         raise HTTPException(status_code=500, detail=f"Failed to create placement: {str(e)}")
 
 
+@app.get("/api/events/nearby")
+async def events_nearby(
+    lat: float = Query(..., description="User latitude"),
+    lon: float = Query(..., description="User longitude"),
+    radius: float = Query(5.0, description="Search radius in kilometers", ge=0.1, le=50),
+    limit: int = Query(20, description="Maximum number of events", ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Find events near user's location.
+
+    Args:
+        lat: User's latitude
+        lon: User's longitude
+        radius: Search radius in km (default: 5)
+        limit: Max results (default: 20)
+        session: DB session
+
+    Returns:
+        List of nearby events with distance information
+    """
+    from app.db.dao.events import find_events_nearby
+    from app.core.services.geo import distance_km, yandex_deeplink
+
+    # Find events within radius
+    events = await find_events_nearby(session, lat, lon, radius, limit)
+
+    # Build response with distance info
+    events_out = []
+    for event in events:
+        if event.lat is None or event.lon is None:
+            continue
+
+        dist = distance_km(lat, lon, float(event.lat), float(event.lon))
+        deeplink = yandex_deeplink(event.lat, event.lon, event.title)
+
+        events_out.append({
+            "id": str(event.id),
+            "title": event.title,
+            "date": event.date.isoformat(),
+            "time": event.time.isoformat() if event.time else None,
+            "venue_name": event.venue_name,
+            "address": event.address,
+            "lat": event.lat,
+            "lon": event.lon,
+            "district": event.district,
+            "distance_km": round(dist, 2),
+            "category": event.category,
+            "price_min": event.price_min,
+            "price_max": event.price_max,
+            "image_url": event.image_url,
+            "source_url": event.source_url,
+            "deeplink": deeplink,
+        })
+
+    logger.info(
+        "api.events_nearby",
+        lat=lat,
+        lon=lon,
+        radius=radius,
+        found=len(events_out),
+    )
+
+    return {
+        "events": events_out,
+        "search": {
+            "lat": lat,
+            "lon": lon,
+            "radius_km": radius,
+        },
+        "count": len(events_out),
+    }
+
+
 def run() -> None:
     """Entrypoint for `python -m app.api.main`."""
 

@@ -100,12 +100,13 @@ def event_actions_kb_with_gallery(event_id: str, route_url: str, site: str | Non
 def main_menu_kb() -> ReplyKeyboardMarkup:
     food_label = rc.get("bot_menu_food_label", "🍴 Где поесть")
     events_label = rc.get("bot_menu_events_label", "🎤 Куда сходить")
+    nearby_label = rc.get("bot_menu_nearby_label", "📍 События рядом")
     poll_label = rc.get("bot_menu_poll_label", "🗳 Опрос")
     ugc_label = rc.get("bot_menu_ugc_label", "➕ Добавить событие")
     rows = [
         [KeyboardButton(text=food_label), KeyboardButton(text=events_label)],
-        [KeyboardButton(text=poll_label), KeyboardButton(text=ugc_label)],
-        [KeyboardButton(text="Сменить город")],
+        [KeyboardButton(text=nearby_label), KeyboardButton(text=poll_label)],
+        [KeyboardButton(text=ugc_label), KeyboardButton(text="Сменить город")],
     ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 

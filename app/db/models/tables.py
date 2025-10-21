@@ -81,6 +81,7 @@ class Event(Base):
     address: Mapped[str] = mapped_column(String)
     lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    district: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # District/neighborhood from geocoding
 
     # Content
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
