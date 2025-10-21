@@ -888,17 +888,20 @@ async def create_monetized_placement(
 
         # Calculate event datetime for price calculation
         from datetime import datetime, timezone
-        event_datetime = datetime.combine(request.event_date, dtime(12, 0))  # Default to noon
+
+        # Parse event_time string to time object
+        event_time_obj = dtime(12, 0)  # Default to noon
         if request.event_time:
             try:
                 # Parse time string (format: "HH:MM" or "HH:MM:SS")
                 time_parts = request.event_time.split(":")
                 hour = int(time_parts[0])
                 minute = int(time_parts[1]) if len(time_parts) > 1 else 0
-                event_datetime = datetime.combine(request.event_date, dtime(hour, minute))
+                event_time_obj = dtime(hour, minute)
             except:
                 pass  # Keep default noon time if parsing fails
 
+        event_datetime = datetime.combine(request.event_date, event_time_obj)
         # Make timezone-aware
         event_datetime = event_datetime.replace(tzinfo=timezone.utc)
 
@@ -936,7 +939,7 @@ async def create_monetized_placement(
             event_id=request.event_id,
             event_title=request.event_title,
             event_date=request.event_date,
-            event_time=request.event_time,
+            event_time=event_time_obj,  # Use parsed time object, not string
             event_description=request.event_description,
             event_venue=request.event_venue,
             event_address=request.event_address,
