@@ -99,6 +99,15 @@ class Settings(BaseSettings):
     def tg_channels(self) -> list[str]:
         return list(self.tg_channels_list)
 
+    @property
+    def api_base_url(self) -> str:
+        """Construct API base URL for internal service communication.
+
+        Returns:
+            str: Full API base URL (e.g., http://api:8000 in Docker).
+        """
+        return f"http://{self.api_host}:{self.api_port}"
+
     # Places provider API keys
     two_gis_api_key: Optional[str] = Field(default=None, alias="TWO_GIS_API_KEY")
     yandex_maps_api_key: Optional[str] = Field(default=None, alias="YANDEX_MAPS_API_KEY")
