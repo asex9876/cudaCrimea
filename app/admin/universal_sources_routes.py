@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_async_session
+from app.db.session import get_session
 from app.db.models import UniversalSource
 from app.admin.templates import templates
 
@@ -38,7 +38,7 @@ def _get_universal_parser():
 
 async def universal_sources_page(
     request: Request,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_session),
 ) -> HTMLResponse:
     """Display universal sources management page."""
     require_login(request)
@@ -79,7 +79,7 @@ async def create_source(
     description: str = Form(None),
     city: str = Form(None),
     parse_interval_minutes: int = Form(30),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_session),
 ) -> RedirectResponse:
     """Create a new universal source."""
     require_login(request)
@@ -130,7 +130,7 @@ async def create_source(
 async def toggle_source(
     source_id: str,
     request: Request,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_session),
 ) -> JSONResponse:
     """Toggle source active/inactive status."""
     require_login(request)
@@ -174,7 +174,7 @@ async def toggle_source(
 async def delete_source_route(
     source_id: str,
     request: Request,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_session),
 ) -> JSONResponse:
     """Delete a universal source."""
     require_login(request)
@@ -206,7 +206,7 @@ async def delete_source_route(
 async def parse_now(
     source_id: str,
     request: Request,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_session),
 ) -> JSONResponse:
     """Manually trigger parsing for a source."""
     require_login(request)
@@ -255,7 +255,7 @@ async def update_source(
     description: str = Form(None),
     city: str = Form(None),
     parse_interval_minutes: int = Form(30),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_session),
 ) -> RedirectResponse:
     """Update source settings."""
     require_login(request)
