@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>🤖 AI Парсинг</h1>
+<p class="muted">Управление AI-функциями: парсинг афиш, поиск дубликатов, автоисправление</p>
+
+<!-- Stats Cards -->
+<div class="row mt1">
+  <div class="col">
+    <div class="card">
+      <h3>📊 Статистика</h3>
+      <table>
+        <tr>
+          <td>Всего событий</td>
+          <td class="right"><strong>{{ total_events }}</strong></td>
+        </tr>
+        <tr>
+          <td>С embeddings</td>
+          <td class="right"><strong>{{ events_with_embeddings }}</strong> ({{ embedding_coverage }}%)</td>
+        </tr>
+        <tr>
+          <td>С расширенными полями</td>
+          <td class="right"><strong>{{ events_with_extended_fields }}</strong></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Parse Poster -->
+<div class="row mt1">
+  <div class="col">
+    <div class="card">
+      <h3>📸 Парсинг афиши (Vision AI)</h3>
+      <p class="muted">Загрузите изображение афиши/постера для автоматического извлечения данных</p>
+
+      <form id="posterForm" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div style="margin:1rem 0">
+          <label>Изображение афиши:</label>
+          <input type="file" name="image" accept="image/*" required>
+        </div>
+        <button type="submit" class="btn">🔍 Распарсить афишу</button>
+      </form>
+
+      <div id="posterResult" style="display:none; margin-top:1rem">
+        <h4>Результат:</h4>
+        <pre id="posterData" style="background:#0b1226;padding:1rem;border-radius:8px;overflow-x:auto"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generate Embeddings -->
+  <div class="col">
+    <div class="card">
+      <h3>🧠 Генерация Embeddings</h3>
+      <p class="muted">Создать векторные представления для поиска дубликатов</p>
+
+      <form id="embeddingsForm">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div style="margin:1rem 0">
+          <label>Количество событий:</label>
+          <input type="number" name="limit" value="100" min="1" max="1000">
+        </div>
+        <button type="submit" class="btn">⚡ Сгенерировать</button>
+      </form>
+
+      <div id="embeddingsResult" style="display:none; margin-top:1rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Find Duplicates -->
+<div class="row mt1">
+  <div class="col">
+    <div class="card">
+      <h3>🔍 Поиск дубликатов</h3>
+      <p class="muted">Найти похожие события используя семантический поиск</p>
+
+      <form id="duplicatesForm">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div style="margin:1rem 0">
+          <label>ID события:</label>
+          <input type="text" name="event_id" placeholder="uuid события" required>
+        </div>
+        <div style="margin:1rem 0">
+          <label>Порог схожести (0-1):</label>
+          <input type="number" name="threshold" value="0.85" min="0" max="1" step="0.05">
+        </div>
+        <button type="submit" class="btn">🔎 Найти дубликаты</button>
+      </form>
+
+      <div id="duplicatesResult" style="display:none; margin-top:1rem">
+        <h4>Найденные дубликаты:</h4>
+        <div id="duplicatesList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Validate Event -->
+  <div class="col">
+    <div class="card">
+      <h3>✅ Валидация события</h3>
+      <p class="muted">Проверить и автоисправить данные события</p>
+
+      <form id="validateForm">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div style="margin:1rem 0">
+          <label>ID события:</label>
+          <input type="text" name="event_id" placeholder="uuid события" required>
+        </div>
+        <button type="submit" class="btn">🔧 Проверить</button>
+      </form>
+
+      <div id="validateResult" style="display:none; margin-top:1rem">
+        <h4>Изменения:</h4>
+        <div id="changesList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .duplicate-item {
+    background: #1b254b;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
+  }
+  .similarity-high { border-left-color: #e74c3c; }
+  .similarity-medium { border-left-color: #f39c12; }
+  .similarity-low { border-left-color: #3498db; }
+
+  .change-item {
+    background: #0b1226;
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 6px;
+  }
+
+  .success-msg {
+    background: #155724;
+    color: #d4edda;
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+  }
+
+  .error-msg {
+    background: #721c24;
+    color: #f8d7da;
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+  }
+</style>
+
+<script>
+// Parse Poster
+document.getElementById('posterForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const resultDiv = document.getElementById('posterResult');
+  const dataDiv = document.getElementById('posterData');
+
+  try {
+    const res = await fetch('/ai-parsing/parse-poster', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      dataDiv.textContent = JSON.stringify(data.data, null, 2);
+      resultDiv.style.display = 'block';
+    } else {
+      alert('Ошибка: ' + data.error);
+    }
+  } catch (err) {
+    alert('Ошибка: ' + err.message);
+  }
+});
+
+// Generate Embeddings
+document.getElementById('embeddingsForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const resultDiv = document.getElementById('embeddingsResult');
+
+  resultDiv.innerHTML = '<p class="muted">Генерация... Это может занять время.</p>';
+  resultDiv.style.display = 'block';
+
+  try {
+    const res = await fetch('/ai-parsing/generate-embeddings', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      resultDiv.innerHTML = `<div class="success-msg">${data.message}</div>`;
+    } else {
+      resultDiv.innerHTML = `<div class="error-msg">${data.error}</div>`;
+    }
+  } catch (err) {
+    resultDiv.innerHTML = `<div class="error-msg">Ошибка: ${err.message}</div>`;
+  }
+});
+
+// Find Duplicates
+document.getElementById('duplicatesForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const resultDiv = document.getElementById('duplicatesResult');
+  const listDiv = document.getElementById('duplicatesList');
+
+  try {
+    const res = await fetch('/ai-parsing/find-duplicates', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.duplicates.length === 0) {
+        listDiv.innerHTML = '<p class="muted">Дубликаты не найдены</p>';
+      } else {
+        listDiv.innerHTML = data.duplicates.map(dup => {
+          const simClass = dup.similarity > 0.95 ? 'similarity-high' :
+                          dup.similarity > 0.9 ? 'similarity-medium' : 'similarity-low';
+          return `
+            <div class="duplicate-item ${simClass}">
+              <strong>${dup.title}</strong><br>
+              <span class="muted">${dup.date} | ${dup.venue} | ${dup.source}</span><br>
+              <strong>Схожесть: ${dup.similarity_percent}%</strong>
+            </div>
+          `;
+        }).join('');
+      }
+      resultDiv.style.display = 'block';
+    } else {
+      alert('Ошибка: ' + data.error);
+    }
+  } catch (err) {
+    alert('Ошибка: ' + err.message);
+  }
+});
+
+// Validate Event
+document.getElementById('validateForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const resultDiv = document.getElementById('validateResult');
+  const listDiv = document.getElementById('changesList');
+
+  try {
+    const res = await fetch('/ai-parsing/validate-event', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.changes.length === 0) {
+        listDiv.innerHTML = '<p class="success-msg">✅ Все данные корректны, исправлений не требуется</p>';
+      } else {
+        listDiv.innerHTML = data.changes.map(ch => `
+          <div class="change-item">
+            <strong>${ch.field}:</strong><br>
+            <span class="muted">Было: ${ch.old_value}</span><br>
+            <span style="color:#4ade80">Стало: ${ch.new_value}</span>
+          </div>
+        `).join('');
+      }
+      resultDiv.style.display = 'block';
+    } else {
+      alert('Ошибка: ' + data.error);
+    }
+  } catch (err) {
+    alert('Ошибка: ' + err.message);
+  }
+});
+</script>
+
+{% endblock %}

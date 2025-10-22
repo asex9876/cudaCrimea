@@ -102,6 +102,16 @@ from app.admin import monetization_routes
 # Register Monetization routes
 app.get("/monetization", response_class=HTMLResponse)(monetization_routes.monetization_page)
 app.post("/monetization/update-setting")(monetization_routes.monetization_update_setting)
+
+# Import AI Parsing routes
+from app.admin import ai_parsing_routes
+
+# Register AI Parsing routes
+app.get("/ai-parsing", response_class=HTMLResponse)(ai_parsing_routes.ai_parsing_page)
+app.post("/ai-parsing/parse-poster")(ai_parsing_routes.parse_poster)
+app.post("/ai-parsing/find-duplicates")(ai_parsing_routes.find_duplicates)
+app.post("/ai-parsing/validate-event")(ai_parsing_routes.validate_event)
+app.post("/ai-parsing/generate-embeddings")(ai_parsing_routes.generate_embeddings_bulk)
 app.post("/monetization/placement-approve")(monetization_routes.monetization_placement_approve)
 app.post("/monetization/placement-reject")(monetization_routes.monetization_placement_reject)
 
