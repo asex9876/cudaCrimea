@@ -17,6 +17,7 @@ from .tables import (
     PlacementRequest,
     TelegramChannel,
     UGCSubmission,
+    UniversalSource,
     User,
 )
 from .telegram_account import TelegramAccount
@@ -40,4 +41,5 @@ __all__ = [
     "BotSettings",
     "ParsedMessage",
     "MonetizationSettings",
+    "UniversalSource",
 ]
