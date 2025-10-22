@@ -17,9 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.db.models import UniversalSource
-from app.admin.templates import templates
 
 logger = structlog.get_logger(module="admin.universal_sources")
+
+
+def _get_templates():
+    """Get Jinja2 templates instance."""
+    from pathlib import Path
+    from fastapi.templating import Jinja2Templates
+    return Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 def require_login(request: Request) -> None:
@@ -62,7 +68,7 @@ async def universal_sources_page(
         "sources_with_errors": sources_with_errors,
     }
 
-    return templates.TemplateResponse(
+    return _get_templates().TemplateResponse(
         "universal_sources.html",
         {
             "request": request,
