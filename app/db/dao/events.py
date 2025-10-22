@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from typing import Any, Mapping, Optional
 
 import structlog
@@ -156,4 +156,114 @@ async def find_events_nearby(
     )
 
     return nearby_events
+
+
+async def find_similar_events(
+    session: AsyncSession,
+    query_embedding: list[float],
+    threshold: float = 0.85,
+    limit: int = 10,
+    exclude_event_id: Optional[str] = None,
+) -> list[tuple[Event, float]]:
+    """Find similar events using cosine similarity of embeddings.
+
+    Args:
+        session: DB session.
+        query_embedding: Query event embedding vector (1536 dimensions).
+        threshold: Minimum similarity score (0-1, default 0.85).
+        limit: Maximum number of results (default 10).
+        exclude_event_id: Optional event ID to exclude from results (for self-comparison).
+
+    Returns:
+        List of (event, similarity_score) tuples sorted by similarity (descending).
+    """
+    from app.core.services.embedding import get_embedding_service
+    from datetime import datetime
+    from uuid import UUID
+
+    embedding_service = get_embedding_service()
+
+    # Get all events with embeddings from today onwards
+    today = datetime.now().date()
+    stmt = select(Event).where(
+        and_(
+            Event.embedding.isnot(None),
+            Event.date >= today - timedelta(days=7),  # Include last week to catch duplicates
+        )
+    )
+    result = await session.execute(stmt)
+    all_events = result.scalars().all()
+
+    # Calculate similarities
+    similarities: list[tuple[Event, float]] = []
+    for event in all_events:
+        # Skip excluded event
+        if exclude_event_id and str(event.id) == str(exclude_event_id):
+            continue
+
+        if event.embedding:
+            try:
+                similarity = embedding_service.cosine_similarity(
+                    query_embedding,
+                    event.embedding,
+                )
+                if similarity >= threshold:
+                    similarities.append((event, similarity))
+            except Exception as e:
+                logger.warning(
+                    "events.similarity_calculation_failed",
+                    event_id=str(event.id),
+                    error=str(e),
+                )
+
+    # Sort by similarity descending and limit
+    similarities.sort(key=lambda x: x[1], reverse=True)
+    results = similarities[:limit]
+
+    logger.info(
+        "events.similar_search",
+        threshold=threshold,
+        candidates=len(all_events),
+        found=len(results),
+    )
+
+    return results
+
+
+async def generate_and_save_embedding(
+    session: AsyncSession,
+    event: Event,
+) -> bool:
+    """Generate and save embedding for an event.
+
+    Args:
+        session: DB session.
+        event: Event to generate embedding for.
+
+    Returns:
+        bool: True if successful, False otherwise.
+    """
+    from app.core.services.embedding import get_embedding_service
+
+    try:
+        embedding_service = get_embedding_service()
+        embedding = embedding_service.generate_event_embedding(
+            title=event.title,
+            date=str(event.date) if event.date else None,
+            venue=event.venue_name,
+            description=event.description,
+        )
+
+        event.embedding = embedding
+        await session.commit()
+
+        logger.info("events.embedding_generated", event_id=str(event.id))
+        return True
+    except Exception as e:
+        logger.error(
+            "events.embedding_generation_failed",
+            event_id=str(event.id),
+            error=str(e),
+        )
+        return False
 
