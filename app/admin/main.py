@@ -116,13 +116,20 @@ app.post("/ai-parsing/generate-embeddings")(ai_parsing_routes.generate_embedding
 # Import Universal Sources routes
 from app.admin import universal_sources_routes
 
-# Register Universal Sources routes
+# Register Universal Sources routes (standalone page - deprecated, use parsers page instead)
 app.get("/universal-sources", response_class=HTMLResponse)(universal_sources_routes.universal_sources_page)
 app.post("/universal-sources/create")(universal_sources_routes.create_source)
 app.post("/universal-sources/{source_id}/toggle")(universal_sources_routes.toggle_source)
 app.delete("/universal-sources/{source_id}/delete")(universal_sources_routes.delete_source_route)
 app.post("/universal-sources/{source_id}/parse")(universal_sources_routes.parse_now)
 app.post("/universal-sources/{source_id}/update")(universal_sources_routes.update_source)
+
+# Register Universal Sources routes under /parsers/ (integrated with parsers page)
+app.post("/parsers/universal-source/create")(universal_sources_routes.create_source)
+app.post("/parsers/universal-source/{source_id}/toggle")(universal_sources_routes.toggle_source)
+app.delete("/parsers/universal-source/{source_id}/delete")(universal_sources_routes.delete_source_route)
+app.post("/parsers/universal-source/{source_id}/parse")(universal_sources_routes.parse_now)
+app.post("/parsers/universal-source/{source_id}/update")(universal_sources_routes.update_source)
 
 app.post("/monetization/placement-approve")(monetization_routes.monetization_placement_approve)
 app.post("/monetization/placement-reject")(monetization_routes.monetization_placement_reject)
@@ -400,6 +407,20 @@ async def parsers_page(request: Request, session: AsyncSession = Depends(get_ses
         select(TelegramChannel).order_by(TelegramChannel.added_at.desc())
     )).scalars().all()
 
+    # Get Universal Sources
+    from app.db.models import UniversalSource
+    universal_sources = (await session.execute(
+        select(UniversalSource).order_by(UniversalSource.created_at.desc())
+    )).scalars().all()
+
+    # Universal sources statistics
+    universal_stats = {
+        "total_sources": len(universal_sources),
+        "active_sources": sum(1 for s in universal_sources if s.is_active),
+        "total_events_parsed": sum(s.total_parsed for s in universal_sources),
+        "sources_with_errors": sum(1 for s in universal_sources if s.last_error is not None),
+    }
+
     return templates.TemplateResponse(
         "parsers.html",
         {
@@ -410,6 +431,8 @@ async def parsers_page(request: Request, session: AsyncSession = Depends(get_ses
             "tg_accounts": tg_accounts,
             "selected_tg_account_id": selected_tg_account_id,
             "channels": channels,
+            "universal_sources": universal_sources,
+            "universal_stats": universal_stats,
         }
     )
 

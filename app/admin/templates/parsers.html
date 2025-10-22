@@ -750,6 +750,422 @@
 
     </div>
 
+
+    <!-- Universal AI Parser Section -->
+    <div style="margin-top:48px;padding-top:32px;border-top:3px solid #1b254b;">
+        <div style="text-align:center;margin-bottom:32px;">
+            <h2 style="font-size:28px;margin-bottom:12px;">🌐 Универсальный AI-Парсер</h2>
+            <p style="color:var(--muted);font-size:15px;max-width:700px;margin:0 auto;">
+                Добавляйте любые сайты с событиями - AI автоматически извлечёт данные без написания кода
+            </p>
+        </div>
+
+        <!-- Universal Parser Statistics -->
+        <div class="stats-grid" style="margin-bottom:32px;">
+            <div class="stat-card" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);">
+                <div class="stat-value">{{ universal_stats.total_sources }}</div>
+                <div class="stat-label">Всего источников</div>
+            </div>
+            <div class="stat-card" style="background:linear-gradient(135deg,#48bb78 0%,#38a169 100%);">
+                <div class="stat-value">{{ universal_stats.active_sources }}</div>
+                <div class="stat-label">Активных</div>
+            </div>
+            <div class="stat-card" style="background:linear-gradient(135deg,#4299e1 0%,#3182ce 100%);">
+                <div class="stat-value">{{ universal_stats.total_events_parsed }}</div>
+                <div class="stat-label">Событий спарсено</div>
+            </div>
+            <div class="stat-card" style="background:linear-gradient(135deg,#ed8936 0%,#dd6b20 100%);">
+                <div class="stat-value">{{ universal_stats.sources_with_errors }}</div>
+                <div class="stat-label">С ошибками</div>
+            </div>
+        </div>
+
+        <!-- Add New Universal Source Card -->
+        <div class="parser-card" style="background:linear-gradient(135deg,rgba(102,126,234,0.05),rgba(118,75,162,0.05));border:2px dashed var(--accent);">
+            <div class="parser-header">
+                <div>
+                    <h3 style="color:var(--accent);">➕ Добавить новый источник</h3>
+                    <p class="parser-description">AI автоматически найдёт все события на странице</p>
+                </div>
+            </div>
+
+            <div class="parser-settings">
+                <div class="row" style="display:flex;gap:16px;margin-bottom:16px;">
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>🔗 URL страницы с афишей *</label>
+                            <input type="url" id="universal_url" placeholder="https://example.com/events" required>
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                Страница со списком событий (афиша, расписание)
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>📝 Название источника *</label>
+                            <input type="text" id="universal_name" placeholder="Название сайта" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" style="display:flex;gap:16px;">
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>🏙️ Город по умолчанию</label>
+                            <input type="text" id="universal_city" placeholder="Севастополь">
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                Для геокодинга адресов
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>⏱️ Интервал парсинга (минут)</label>
+                            <input type="number" id="universal_interval" value="30" min="5" max="1440">
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                30 мин = каждые полчаса
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>💬 Описание (опционально)</label>
+                            <input type="text" id="universal_description" placeholder="Краткое описание">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="parser-actions">
+                <button type="button" class="btn-run" style="background:#48bb78;" onclick="addUniversalSource()">
+                    ➕ Добавить источник
+                </button>
+            </div>
+        </div>
+
+        <!-- Existing Universal Sources List -->
+        {% if universal_sources %}
+        <div style="margin-top:24px;">
+            <h3 style="margin-bottom:16px;font-size:18px;">📚 Добавленные источники</h3>
+
+            {% for source in universal_sources %}
+            <div class="parser-card" id="universal-source-{{ source.id }}" style="margin-bottom:16px;">
+                <div class="parser-header">
+                    <div style="flex:1;">
+                        <h3 style="font-size:17px;margin-bottom:8px;">
+                            {{ source.name }}
+                            {% if source.is_active %}
+                            <span class="badge" style="background:#48bb78;color:white;">Активен</span>
+                            {% else %}
+                            <span class="badge" style="background:#718096;color:white;">Отключен</span>
+                            {% endif %}
+                        </h3>
+                        <p class="parser-description" style="margin-bottom:8px;">
+                            🔗 <a href="{{ source.url }}" target="_blank" style="color:var(--accent);">{{ source.url }}</a>
+                        </p>
+                        {% if source.description %}
+                        <p class="parser-description">{{ source.description }}</p>
+                        {% endif %}
+                    </div>
+                    <label class="parser-toggle">
+                        <input type="checkbox" {% if source.is_active %}checked{% endif %}
+                               onchange="toggleUniversalSource('{{ source.id }}')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="parser-settings" style="margin-top:16px;">
+                    <div class="row" style="display:flex;gap:12px;font-size:13px;color:#999;">
+                        <div>🏙️ Город: <strong style="color:var(--fg);">{{ source.city or 'не указан' }}</strong></div>
+                        <div>⏱️ Интервал: <strong style="color:var(--fg);">{{ source.parse_interval_minutes }} мин</strong></div>
+                        <div>📊 Событий: <strong style="color:var(--accent);">{{ source.total_parsed }}</strong></div>
+                        <div>
+                            🕐 Последний парсинг:
+                            {% if source.last_parsed_at %}
+                            <strong style="color:var(--fg);">{{ source.last_parsed_at.strftime('%Y-%m-%d %H:%M') }}</strong>
+                            {% else %}
+                            <strong style="color:#999;">никогда</strong>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if source.last_error %}
+                    <div style="margin-top:12px;padding:10px;background:rgba(245,101,101,0.1);border-left:3px solid #f56565;border-radius:4px;">
+                        <div style="font-size:12px;color:#fc8181;font-weight:600;margin-bottom:4px;">⚠️ Последняя ошибка:</div>
+                        <div style="font-size:12px;color:#feb2b2;">{{ source.last_error }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="parser-actions" style="margin-top:16px;">
+                    <button type="button" class="btn-run" onclick="parseUniversalSourceNow('{{ source.id }}')">
+                        🔄 Парсить сейчас
+                    </button>
+                    <button type="button" class="btn-run" style="background:#718096;"
+                            onclick="editUniversalSource('{{ source.id }}', '{{ source.name }}', '{{ source.description or '' }}', '{{ source.city or '' }}', {{ source.parse_interval_minutes }})">
+                        ✏️ Редактировать
+                    </button>
+                    <button type="button" class="btn-run" style="background:#f56565;"
+                            onclick="deleteUniversalSource('{{ source.id }}')">
+                        🗑️ Удалить
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="margin-top:24px;text-align:center;padding:40px;background:rgba(102,126,234,0.03);border-radius:12px;border:1px dashed #4a5568;">
+            <div style="font-size:48px;margin-bottom:12px;opacity:0.5;">📭</div>
+            <div style="font-size:16px;color:var(--muted);margin-bottom:8px;">Нет добавленных источников</div>
+            <div style="font-size:13px;color:#999;">Добавьте первый источник используя форму выше</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Edit Universal Source Modal -->
+    <div id="editUniversalModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:var(--card);border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;">
+            <h3 style="margin-bottom:20px;">✏️ Редактировать источник</h3>
+
+            <div class="setting-group">
+                <label>📝 Название *</label>
+                <input type="text" id="edit_universal_name" required>
+            </div>
+
+            <div class="setting-group">
+                <label>💬 Описание</label>
+                <input type="text" id="edit_universal_description">
+            </div>
+
+            <div class="setting-group">
+                <label>🏙️ Город</label>
+                <input type="text" id="edit_universal_city">
+            </div>
+
+            <div class="setting-group">
+                <label>⏱️ Интервал парсинга (минут)</label>
+                <input type="number" id="edit_universal_interval" min="5" max="1440">
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:24px;">
+                <button type="button" class="btn-run" style="background:#718096;flex:1;" onclick="closeEditModal()">
+                    Отмена
+                </button>
+                <button type="button" class="btn-run" style="background:#48bb78;flex:1;" onclick="saveUniversalSource()">
+                    💾 Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Universal AI Parser Section -->
+    <div style="margin-top:48px;padding-top:32px;border-top:3px solid #1b254b;">
+        <div style="text-align:center;margin-bottom:32px;">
+            <h2 style="font-size:28px;margin-bottom:12px;">🌐 Универсальный AI-Парсер</h2>
+            <p style="color:var(--muted);font-size:15px;max-width:700px;margin:0 auto;">
+                Добавляйте любые сайты с событиями - AI автоматически извлечёт данные без написания кода
+            </p>
+        </div>
+
+        <!-- Universal Parser Statistics -->
+        <div class="stats-grid" style="margin-bottom:32px;">
+            <div class="stat-card" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);">
+                <div class="stat-value">{{ universal_stats.total_sources }}</div>
+                <div class="stat-label">Всего источников</div>
+            </div>
+            <div class="stat-card" style="background:linear-gradient(135deg,#48bb78 0%,#38a169 100%);">
+                <div class="stat-value">{{ universal_stats.active_sources }}</div>
+                <div class="stat-label">Активных</div>
+            </div>
+            <div class="stat-card" style="background:linear-gradient(135deg,#4299e1 0%,#3182ce 100%);">
+                <div class="stat-value">{{ universal_stats.total_events_parsed }}</div>
+                <div class="stat-label">Событий спарсено</div>
+            </div>
+            <div class="stat-card" style="background:linear-gradient(135deg,#ed8936 0%,#dd6b20 100%);">
+                <div class="stat-value">{{ universal_stats.sources_with_errors }}</div>
+                <div class="stat-label">С ошибками</div>
+            </div>
+        </div>
+
+        <!-- Add New Universal Source Card -->
+        <div class="parser-card" style="background:linear-gradient(135deg,rgba(102,126,234,0.05),rgba(118,75,162,0.05));border:2px dashed var(--accent);">
+            <div class="parser-header">
+                <div>
+                    <h3 style="color:var(--accent);">➕ Добавить новый источник</h3>
+                    <p class="parser-description">AI автоматически найдёт все события на странице</p>
+                </div>
+            </div>
+
+            <div class="parser-settings">
+                <div class="row" style="display:flex;gap:16px;margin-bottom:16px;">
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>🔗 URL страницы с афишей *</label>
+                            <input type="url" id="universal_url" placeholder="https://example.com/events" required>
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                Страница со списком событий (афиша, расписание)
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>📝 Название источника *</label>
+                            <input type="text" id="universal_name" placeholder="Название сайта" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" style="display:flex;gap:16px;">
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>🏙️ Город по умолчанию</label>
+                            <input type="text" id="universal_city" placeholder="Севастополь">
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                Для геокодинга адресов
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>⏱️ Интервал парсинга (минут)</label>
+                            <input type="number" id="universal_interval" value="30" min="5" max="1440">
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                30 мин = каждые полчаса
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>💬 Описание (опционально)</label>
+                            <input type="text" id="universal_description" placeholder="Краткое описание">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="parser-actions">
+                <button type="button" class="btn-run" style="background:#48bb78;" onclick="addUniversalSource()">
+                    ➕ Добавить источник
+                </button>
+            </div>
+        </div>
+
+        <!-- Existing Universal Sources List -->
+        {% if universal_sources %}
+        <div style="margin-top:24px;">
+            <h3 style="margin-bottom:16px;font-size:18px;">📚 Добавленные источники</h3>
+
+            {% for source in universal_sources %}
+            <div class="parser-card" id="universal-source-{{ source.id }}" style="margin-bottom:16px;">
+                <div class="parser-header">
+                    <div style="flex:1;">
+                        <h3 style="font-size:17px;margin-bottom:8px;">
+                            {{ source.name }}
+                            {% if source.is_active %}
+                            <span class="badge" style="background:#48bb78;color:white;">Активен</span>
+                            {% else %}
+                            <span class="badge" style="background:#718096;color:white;">Отключен</span>
+                            {% endif %}
+                        </h3>
+                        <p class="parser-description" style="margin-bottom:8px;">
+                            🔗 <a href="{{ source.url }}" target="_blank" style="color:var(--accent);">{{ source.url }}</a>
+                        </p>
+                        {% if source.description %}
+                        <p class="parser-description">{{ source.description }}</p>
+                        {% endif %}
+                    </div>
+                    <label class="parser-toggle">
+                        <input type="checkbox" {% if source.is_active %}checked{% endif %}
+                               onchange="toggleUniversalSource('{{ source.id }}')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="parser-settings" style="margin-top:16px;">
+                    <div class="row" style="display:flex;gap:12px;font-size:13px;color:#999;">
+                        <div>🏙️ Город: <strong style="color:var(--fg);">{{ source.city or 'не указан' }}</strong></div>
+                        <div>⏱️ Интервал: <strong style="color:var(--fg);">{{ source.parse_interval_minutes }} мин</strong></div>
+                        <div>📊 Событий: <strong style="color:var(--accent);">{{ source.total_parsed }}</strong></div>
+                        <div>
+                            🕐 Последний парсинг:
+                            {% if source.last_parsed_at %}
+                            <strong style="color:var(--fg);">{{ source.last_parsed_at.strftime('%Y-%m-%d %H:%M') }}</strong>
+                            {% else %}
+                            <strong style="color:#999;">никогда</strong>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if source.last_error %}
+                    <div style="margin-top:12px;padding:10px;background:rgba(245,101,101,0.1);border-left:3px solid #f56565;border-radius:4px;">
+                        <div style="font-size:12px;color:#fc8181;font-weight:600;margin-bottom:4px;">⚠️ Последняя ошибка:</div>
+                        <div style="font-size:12px;color:#feb2b2;">{{ source.last_error }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="parser-actions" style="margin-top:16px;">
+                    <button type="button" class="btn-run" onclick="parseUniversalSourceNow('{{ source.id }}')">
+                        🔄 Парсить сейчас
+                    </button>
+                    <button type="button" class="btn-run" style="background:#718096;"
+                            onclick="editUniversalSource('{{ source.id }}', '{{ source.name }}', '{{ source.description or '' }}', '{{ source.city or '' }}', {{ source.parse_interval_minutes }})">
+                        ✏️ Редактировать
+                    </button>
+                    <button type="button" class="btn-run" style="background:#f56565;"
+                            onclick="deleteUniversalSource('{{ source.id }}')">
+                        🗑️ Удалить
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="margin-top:24px;text-align:center;padding:40px;background:rgba(102,126,234,0.03);border-radius:12px;border:1px dashed #4a5568;">
+            <div style="font-size:48px;margin-bottom:12px;opacity:0.5;">📭</div>
+            <div style="font-size:16px;color:var(--muted);margin-bottom:8px;">Нет добавленных источников</div>
+            <div style="font-size:13px;color:#999;">Добавьте первый источник используя форму выше</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Edit Universal Source Modal -->
+    <div id="editUniversalModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:var(--card);border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;">
+            <h3 style="margin-bottom:20px;">✏️ Редактировать источник</h3>
+
+            <div class="setting-group">
+                <label>📝 Название *</label>
+                <input type="text" id="edit_universal_name" required>
+            </div>
+
+            <div class="setting-group">
+                <label>💬 Описание</label>
+                <input type="text" id="edit_universal_description">
+            </div>
+
+            <div class="setting-group">
+                <label>🏙️ Город</label>
+                <input type="text" id="edit_universal_city">
+            </div>
+
+            <div class="setting-group">
+                <label>⏱️ Интервал парсинга (минут)</label>
+                <input type="number" id="edit_universal_interval" min="5" max="1440">
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:24px;">
+                <button type="button" class="btn-run" style="background:#718096;flex:1;" onclick="closeEditModal()">
+                    Отмена
+                </button>
+                <button type="button" class="btn-run" style="background:#48bb78;flex:1;" onclick="saveUniversalSource()">
+                    💾 Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Global Actions -->
     <div class="global-actions">
         <button type="submit" class="btn-save">💾 Сохранить все настройки</button>
@@ -1080,6 +1496,173 @@
             });
         });
     }
+
+    // ========== Universal Parser Functions ==========
+    let currentEditingSourceId = null;
+
+    async function addUniversalSource() {
+        const url = document.getElementById('universal_url').value;
+        const name = document.getElementById('universal_name').value;
+        const city = document.getElementById('universal_city').value;
+        const interval = document.getElementById('universal_interval').value;
+        const description = document.getElementById('universal_description').value;
+
+        if (!url || !name) {
+            alert('Пожалуйста, заполните обязательные поля (URL и название)');
+            return;
+        }
+
+        try {
+            const response = await fetch('/admin/parsers/universal-source/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    url,
+                    name,
+                    city,
+                    parse_interval_minutes: interval,
+                    description
+                })
+            });
+
+            if (response.ok) {
+                showNotification('Источник успешно добавлен!', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                const data = await response.json();
+                showNotification('Ошибка: ' + (data.detail || 'Неизвестная ошибка'), 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('Ошибка при добавлении источника', 'error');
+        }
+    }
+
+    async function toggleUniversalSource(sourceId) {
+        try {
+            const response = await fetch(`/admin/parsers/universal-source/${sourceId}/toggle`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                showNotification('Статус источника изменён', 'success');
+            } else {
+                showNotification('Ошибка при изменении статуса', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('Ошибка при изменении статуса', 'error');
+        }
+    }
+
+    async function parseUniversalSourceNow(sourceId) {
+        if (!confirm('Запустить парсинг этого источника сейчас?')) return;
+
+        try {
+            showNotification('Парсинг запущен...', 'info');
+
+            const response = await fetch(`/admin/parsers/universal-source/${sourceId}/parse`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification(`Парсинг завершён! Добавлено событий: ${data.events_added}`, 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showNotification('Ошибка парсинга: ' + (data.error || 'Неизвестная ошибка'), 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('Ошибка при запуске парсинга', 'error');
+        }
+    }
+
+    function editUniversalSource(sourceId, name, description, city, interval) {
+        currentEditingSourceId = sourceId;
+        document.getElementById('edit_universal_name').value = name;
+        document.getElementById('edit_universal_description').value = description;
+        document.getElementById('edit_universal_city').value = city;
+        document.getElementById('edit_universal_interval').value = interval;
+
+        const modal = document.getElementById('editUniversalModal');
+        modal.style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        const modal = document.getElementById('editUniversalModal');
+        modal.style.display = 'none';
+        currentEditingSourceId = null;
+    }
+
+    async function saveUniversalSource() {
+        if (!currentEditingSourceId) return;
+
+        const name = document.getElementById('edit_universal_name').value;
+        const description = document.getElementById('edit_universal_description').value;
+        const city = document.getElementById('edit_universal_city').value;
+        const interval = document.getElementById('edit_universal_interval').value;
+
+        if (!name) {
+            alert('Название обязательно');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/admin/parsers/universal-source/${currentEditingSourceId}/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    name,
+                    description,
+                    city,
+                    parse_interval_minutes: interval
+                })
+            });
+
+            if (response.ok) {
+                showNotification('Источник успешно обновлён!', 'success');
+                closeEditModal();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                const data = await response.json();
+                showNotification('Ошибка: ' + (data.detail || 'Неизвестная ошибка'), 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('Ошибка при обновлении источника', 'error');
+        }
+    }
+
+    async function deleteUniversalSource(sourceId) {
+        if (!confirm('Удалить этот источник? Это действие нельзя отменить.')) return;
+
+        try {
+            const response = await fetch(`/admin/parsers/universal-source/${sourceId}/delete`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                showNotification('Источник успешно удалён', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification('Ошибка при удалении источника', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('Ошибка при удалении источника', 'error');
+        }
+    }
+
+    // Close modal on background click
+    document.addEventListener('click', function(e) {
+        const modal = document.getElementById('editUniversalModal');
+        if (e.target === modal) {
+            closeEditModal();
+        }
+    });
+
 </script>
 
 {% endblock %}
