@@ -21,15 +21,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.db.models import Event
 from app.db.session import get_session
-from app.core.llm.vision_parser import get_vision_parser
-from app.core.llm.extractor import EventDraft
-from app.core.services.embedding import get_embedding_service
-from app.core.services.validation import get_validation_service
-from app.db.dao.events import find_similar_events, generate_and_save_embedding
 
 import structlog
 
 logger = structlog.get_logger(module="admin.ai_parsing")
+
+
+# Lazy imports to avoid ModuleNotFoundError if openai is not installed
+def _get_vision_parser():
+    from app.core.llm.vision_parser import get_vision_parser
+    return get_vision_parser()
+
+
+def _get_embedding_service():
+    from app.core.services.embedding import get_embedding_service
+    return get_embedding_service()
+
+
+def _get_validation_service():
+    from app.core.services.validation import get_validation_service
+    return get_validation_service()
+
+
+def _get_find_similar_events():
+    from app.db.dao.events import find_similar_events
+    return find_similar_events
+
+
+def _get_generate_and_save_embedding():
+    from app.db.dao.events import generate_and_save_embedding
+    return generate_and_save_embedding
 
 
 def require_login(request: Request) -> None:
@@ -130,7 +151,7 @@ async def parse_poster(
             image_base64 = f"data:image/{image.content_type.split('/')[-1]};base64,{base64.b64encode(image_data).decode()}"
 
         # Parse with Vision AI
-        vision_parser = get_vision_parser()
+        vision_parser = _get_vision_parser()
         event_draft = vision_parser.parse_image_base64(image_base64, detail="high")
 
         # Clean up temp file
@@ -181,7 +202,7 @@ async def find_duplicates(
 
         # Generate embedding if needed
         if not event.embedding:
-            embedding_service = get_embedding_service()
+            embedding_service = _get_embedding_service()
             embedding = embedding_service.generate_event_embedding(
                 title=event.title,
                 date=str(event.date) if event.date else None,
@@ -192,6 +213,7 @@ async def find_duplicates(
             embedding = event.embedding
 
         # Find similar events
+        find_similar_events = _get_find_similar_events()
         similar = await find_similar_events(
             session,
             query_embedding=embedding,
@@ -260,7 +282,7 @@ async def validate_event(
         }
 
         # Validate
-        validator = get_validation_service()
+        validator = _get_validation_service()
         validated = validator.validate_event_data(event_data)
 
         # Find changes
@@ -314,7 +336,7 @@ async def generate_embeddings_bulk(
             })
 
         # Generate embeddings
-        embedding_service = get_embedding_service()
+        embedding_service = _get_embedding_service()
         processed = 0
         failed = 0
 
