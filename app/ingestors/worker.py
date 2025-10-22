@@ -98,6 +98,23 @@ async def job_archive_past_events() -> None:
             await session.rollback()
 
 
+async def job_universal_parser() -> None:
+    """Universal AI parser - парсит все активные источники."""
+    from app.ingestors.universal_parser import process_all_active_sources
+
+    ss = get_sessionmaker()
+    async with ss() as session:  # type: ignore[call-arg]
+        try:
+            result = await process_all_active_sources(session)
+            logger.info(
+                "worker.universal_parser.completed",
+                sources=result["total_sources"],
+                events=result["total_events"],
+            )
+        except Exception as e:
+            logger.error("worker.universal_parser.error", error=str(e))
+
+
 async def run_queue(stop_event: asyncio.Event) -> None:
     s = get_settings()
     redis = aioredis.from_url(str(s.redis_url), decode_responses=True)
@@ -205,6 +222,19 @@ def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
         replace_existing=True,
     )
     logger.info("worker.schedule.archive_past_events", interval_minutes=30)
+
+    # Universal AI parser - парсит все активные источники каждые 30 минут
+    universal_parser_enabled = bool(rc.get("ingest_universal_parser_enabled", True))
+    universal_parser_minutes = float(rc.get("ingest_universal_parser_minutes", 30))
+
+    if universal_parser_enabled:
+        scheduler.add_job(
+            job_universal_parser,
+            IntervalTrigger(minutes=max(5, int(universal_parser_minutes)), jitter=300),
+            id="universal_parser",
+            replace_existing=True,
+        )
+        logger.info("worker.schedule.universal_parser", interval_minutes=universal_parser_minutes)
 
 
 async def main_async() -> None:

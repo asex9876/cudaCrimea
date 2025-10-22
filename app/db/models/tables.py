@@ -653,3 +653,43 @@ class GeocodingCache(Base):
     __table_args__ = (
         Index("ix_geocoding_cache_query", "query"),
     )
+
+
+class UniversalSource(Base):
+    """User-added universal parsing source.
+
+    Allows admins to add any URL and have AI automatically parse events from it.
+    Monitored periodically (every 30 minutes) for new content.
+    """
+
+    __tablename__ = "universal_sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Source info
+    url: Mapped[str] = mapped_column(String(1000), unique=True, index=True)  # Source URL
+    name: Mapped[str] = mapped_column(String(200))  # Human-readable name
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Optional description
+
+    # Parsing config
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))  # Enable/disable source
+    parse_interval_minutes: Mapped[int] = mapped_column(Integer, server_default=text("30"))  # How often to check
+    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Default city for events
+
+    # AI-learned parsing strategy (optional, can be null initially)
+    parsing_strategy: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)  # AI-generated parsing instructions
+
+    # Stats
+    total_parsed: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # Total events extracted
+    last_parsed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # Last successful parse
+    last_error: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Last error message
+
+    # Metadata
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Admin who added it
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+    __table_args__ = (
+        Index("ix_universal_sources_is_active", "is_active"),
+        Index("ix_universal_sources_last_parsed_at", "last_parsed_at"),
+    )

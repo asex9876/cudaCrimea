@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}Управление источниками парсинга{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>🌐 Универсальный AI-Парсер</h1>
+    <p class="text-muted">Добавляйте любые сайты с событиями - AI автоматически извлечёт данные</p>
+
+    <!-- Statistics -->
+    <div class="row mt-4 mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.total_sources }}</h5>
+                    <p class="card-text text-muted">Всего источников</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-success">{{ stats.active_sources }}</h5>
+                    <p class="card-text text-muted">Активных</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">{{ stats.total_events_parsed }}</h5>
+                    <p class="card-text text-muted">Событий спарсено</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-danger">{{ stats.sources_with_errors }}</h5>
+                    <p class="card-text text-muted">С ошибками</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add New Source Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>➕ Добавить источник</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="/admin/universal-sources/create">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="url" class="form-label">URL страницы *</label>
+                            <input type="url" class="form-control" id="url" name="url" required
+                                   placeholder="https://example.com/events">
+                            <small class="form-text text-muted">Страница со списком событий (афиша, расписание)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Название *</label>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                   placeholder="Название сайта">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="city" class="form-label">Город по умолчанию</label>
+                            <input type="text" class="form-control" id="city" name="city"
+                                   placeholder="Севастополь">
+                            <small class="form-text text-muted">Для геокодинга адресов</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="parse_interval_minutes" class="form-label">Интервал парсинга (мин)</label>
+                            <input type="number" class="form-control" id="parse_interval_minutes"
+                                   name="parse_interval_minutes" value="30" min="5" max="1440">
+                            <small class="form-text text-muted">30 мин = каждые полчаса</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Описание</label>
+                            <input type="text" class="form-control" id="description" name="description"
+                                   placeholder="Краткое описание">
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Добавить источник</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sources List -->
+    <div class="card">
+        <div class="card-header">
+            <h5>📋 Список источников</h5>
+        </div>
+        <div class="card-body">
+            {% if sources %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>URL</th>
+                            <th>Город</th>
+                            <th>Интервал</th>
+                            <th>Статус</th>
+                            <th>События</th>
+                            <th>Последний парсинг</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for source in sources %}
+                        <tr id="source-{{ source.id }}">
+                            <td>
+                                <strong>{{ source.name }}</strong>
+                                {% if source.description %}
+                                <br><small class="text-muted">{{ source.description }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ source.url }}" target="_blank" class="text-truncate" style="max-width: 200px; display: inline-block;">
+                                    {{ source.url }}
+                                </a>
+                            </td>
+                            <td>{{ source.city or '-' }}</td>
+                            <td>{{ source.parse_interval_minutes }} мин</td>
+                            <td>
+                                {% if source.is_active %}
+                                <span class="badge bg-success" id="status-badge-{{ source.id }}">Активен</span>
+                                {% else %}
+                                <span class="badge bg-secondary" id="status-badge-{{ source.id }}">Отключен</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ source.total_parsed }}</span>
+                            </td>
+                            <td>
+                                {% if source.last_parsed_at %}
+                                {{ source.last_parsed_at.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                <span class="text-muted">Никогда</span>
+                                {% endif %}
+                                {% if source.last_error %}
+                                <br><small class="text-danger" title="{{ source.last_error }}">⚠️ Ошибка</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <!-- Toggle Active -->
+                                    <button type="button" class="btn btn-outline-primary"
+                                            onclick="toggleSource('{{ source.id }}')"
+                                            title="Включить/Выключить">
+                                        {% if source.is_active %}⏸{% else %}▶{% endif %}
+                                    </button>
+
+                                    <!-- Parse Now -->
+                                    <button type="button" class="btn btn-outline-success"
+                                            onclick="parseNow('{{ source.id }}')"
+                                            title="Парсить сейчас">
+                                        🔄
+                                    </button>
+
+                                    <!-- Edit (opens modal) -->
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            onclick="openEditModal('{{ source.id }}', '{{ source.name }}', '{{ source.description or '' }}', '{{ source.city or '' }}', {{ source.parse_interval_minutes }})"
+                                            title="Редактировать">
+                                        ✏️
+                                    </button>
+
+                                    <!-- Delete -->
+                                    <button type="button" class="btn btn-outline-danger"
+                                            onclick="deleteSource('{{ source.id }}')"
+                                            title="Удалить">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <p class="mb-0">📋 Нет источников. Добавьте первый источник выше!</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактировать источник</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit-name" class="form-label">Название</label>
+                        <input type="text" class="form-control" id="edit-name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-description" class="form-label">Описание</label>
+                        <input type="text" class="form-control" id="edit-description" name="description">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-city" class="form-label">Город</label>
+                        <input type="text" class="form-control" id="edit-city" name="city">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-interval" class="form-label">Интервал парсинга (мин)</label>
+                        <input type="number" class="form-control" id="edit-interval" name="parse_interval_minutes" min="5" max="1440">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Toggle source active status
+async function toggleSource(sourceId) {
+    try {
+        const response = await fetch(`/admin/universal-sources/${sourceId}/toggle`, {
+            method: 'POST',
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            const badge = document.getElementById(`status-badge-${sourceId}`);
+            if (data.is_active) {
+                badge.textContent = 'Активен';
+                badge.className = 'badge bg-success';
+            } else {
+                badge.textContent = 'Отключен';
+                badge.className = 'badge bg-secondary';
+            }
+
+            // Reload page to update button icon
+            setTimeout(() => location.reload(), 500);
+        } else {
+            alert('Ошибка при переключении статуса');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Ошибка при переключении статуса');
+    }
+}
+
+// Parse now
+async function parseNow(sourceId) {
+    if (!confirm('Запустить парсинг сейчас?')) return;
+
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳';
+
+    try {
+        const response = await fetch(`/admin/universal-sources/${sourceId}/parse`, {
+            method: 'POST',
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✅ Парсинг завершён!\nДобавлено событий: ${data.events_added}`);
+            location.reload();
+        } else {
+            alert(`❌ Ошибка парсинга:\n${data.error}`);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Ошибка при запуске парсинга');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄';
+    }
+}
+
+// Delete source
+async function deleteSource(sourceId) {
+    if (!confirm('Удалить этот источник? Это действие нельзя отменить.')) return;
+
+    try {
+        const response = await fetch(`/admin/universal-sources/${sourceId}/delete`, {
+            method: 'DELETE',
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById(`source-${sourceId}`).remove();
+            alert('✅ Источник удалён');
+            location.reload();
+        } else {
+            alert('Ошибка при удалении источника');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Ошибка при удалении источника');
+    }
+}
+
+// Open edit modal
+function openEditModal(sourceId, name, description, city, interval) {
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-description').value = description;
+    document.getElementById('edit-city').value = city;
+    document.getElementById('edit-interval').value = interval;
+
+    const form = document.getElementById('editForm');
+    form.action = `/admin/universal-sources/${sourceId}/update`;
+
+    const modal = new bootstrap.Modal(document.getElementById('editModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

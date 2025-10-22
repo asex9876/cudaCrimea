@@ -112,6 +112,18 @@ app.post("/ai-parsing/parse-poster")(ai_parsing_routes.parse_poster)
 app.post("/ai-parsing/find-duplicates")(ai_parsing_routes.find_duplicates)
 app.post("/ai-parsing/validate-event")(ai_parsing_routes.validate_event)
 app.post("/ai-parsing/generate-embeddings")(ai_parsing_routes.generate_embeddings_bulk)
+
+# Import Universal Sources routes
+from app.admin import universal_sources_routes
+
+# Register Universal Sources routes
+app.get("/universal-sources", response_class=HTMLResponse)(universal_sources_routes.universal_sources_page)
+app.post("/universal-sources/create")(universal_sources_routes.create_source)
+app.post("/universal-sources/{source_id}/toggle")(universal_sources_routes.toggle_source)
+app.delete("/universal-sources/{source_id}/delete")(universal_sources_routes.delete_source_route)
+app.post("/universal-sources/{source_id}/parse")(universal_sources_routes.parse_now)
+app.post("/universal-sources/{source_id}/update")(universal_sources_routes.update_source)
+
 app.post("/monetization/placement-approve")(monetization_routes.monetization_placement_approve)
 app.post("/monetization/placement-reject")(monetization_routes.monetization_placement_reject)
 
