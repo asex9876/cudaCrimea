@@ -32,10 +32,18 @@ class EventDraft(BaseModel):
         price_max: Maximal price.
         category: One of allowed categories.
         source_url: Optional source URL.
+        age_restriction: Age restriction (0+, 6+, 12+, 16+, 18+).
+        organizer: Event organizer or artist name.
+        end_time: Event end time in 24h format HH:MM.
+        duration_minutes: Duration in minutes.
+        capacity: Venue capacity or attendee limit.
+        recurring_pattern: Recurring pattern (daily, weekly, monthly, etc.).
+        ticket_type: Ticket type (sale, booking, free, registration).
     """
 
     model_config = ConfigDict(extra="ignore")
 
+    # Core fields (existing)
     title: Optional[str] = None
     date_iso: Optional[str] = None
     time_24h: Optional[str] = None
@@ -45,6 +53,15 @@ class EventDraft(BaseModel):
     price_max: Optional[int] = None
     category: Optional[str] = Field(default=None)
     source_url: Optional[str] = None
+
+    # Extended fields (new)
+    age_restriction: Optional[str] = None
+    organizer: Optional[str] = None
+    end_time: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    capacity: Optional[int] = None
+    recurring_pattern: Optional[str] = None
+    ticket_type: Optional[str] = None
 
     @field_validator("date_iso")
     @classmethod
@@ -76,19 +93,68 @@ class EventDraft(BaseModel):
     def _validate_category(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        allowed = {"concert", "theatre", "kids", "tour", "party", "expo", "other"}
+        allowed = {"concert", "theatre", "kids", "tour", "party", "expo", "other", "sport"}
         vl = v.lower()
         if vl in allowed:
             return vl
         raise ValueError("invalid category")
 
+    @field_validator("end_time")
+    @classmethod
+    def _validate_end_time(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        if re.fullmatch(r"\d{2}:\d{2}", v):
+            hh, mm = v.split(":", 1)
+            if 0 <= int(hh) <= 23 and 0 <= int(mm) <= 59:
+                return v
+        raise ValueError("end_time must be HH:MM in 24h")
+
+    @field_validator("age_restriction")
+    @classmethod
+    def _validate_age_restriction(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        allowed = {"0+", "6+", "12+", "16+", "18+"}
+        if v in allowed:
+            return v
+        raise ValueError("age_restriction must be one of: 0+, 6+, 12+, 16+, 18+")
+
+    @field_validator("ticket_type")
+    @classmethod
+    def _validate_ticket_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        allowed = {"sale", "booking", "free", "registration"}
+        vl = v.lower()
+        if vl in allowed:
+            return vl
+        raise ValueError("ticket_type must be one of: sale, booking, free, registration")
+
 
 # Default fallback prompt
 DEFAULT_SYS_PROMPT = (
     "Ты — извлекатель фактов о событиях в Крыму/Севастополе. "
-    "Верни JSON: {title, date_iso, time_24h|null, venue_name, address, price_min, price_max, "
-    "category in [concert|theatre|kids|tour|party|expo|other], source_url}. "
-    "Если нет данных — null. Не придумывай."
+    "Верни JSON со всеми доступными полями:\n"
+    "{\n"
+    "  title: string,\n"
+    "  date_iso: YYYY-MM-DD,\n"
+    "  time_24h: HH:MM|null,\n"
+    "  venue_name: string,\n"
+    "  address: string,\n"
+    "  price_min: int|null,\n"
+    "  price_max: int|null,\n"
+    "  category: concert|theatre|kids|tour|party|expo|other|sport,\n"
+    "  source_url: string|null,\n"
+    "  age_restriction: 0+|6+|12+|16+|18+|null,\n"
+    "  organizer: string|null (организатор или имя артиста),\n"
+    "  end_time: HH:MM|null,\n"
+    "  duration_minutes: int|null,\n"
+    "  capacity: int|null (вместимость),\n"
+    "  recurring_pattern: daily|weekly|monthly|null,\n"
+    "  ticket_type: sale|booking|free|registration|null\n"
+    "}\n"
+    "Если нет данных — null. Не придумывай. Извлекай только то, что явно указано в тексте."
 )
 
 
@@ -164,5 +230,12 @@ def extract_event_fields(text: str, source_url: Optional[str] = None, custom_pro
             "price_max",
             "category",
             "source_url",
+            "age_restriction",
+            "organizer",
+            "end_time",
+            "duration_minutes",
+            "capacity",
+            "recurring_pattern",
+            "ticket_type",
         )}
         return EventDraft.model_validate(cleaned)

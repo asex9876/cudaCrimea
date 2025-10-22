@@ -88,10 +88,22 @@ class Event(Base):
     image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Legacy: first photo
     images: Mapped[Optional[list[str]]] = mapped_column(JSONB, nullable=True)  # Array of photo URLs
 
+    # Extended metadata (AI-extracted)
+    age_restriction: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)  # "0+", "6+", "12+", "16+", "18+"
+    organizer: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Organizer or artist name
+    end_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)  # Event end time
+    duration_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Duration in minutes
+    capacity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Venue capacity or attendee limit
+    recurring_pattern: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # "daily", "weekly", "monthly", etc.
+    ticket_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # "sale", "booking", "free", "registration"
+
     # Source
     source: Mapped[str] = mapped_column(String)  # 'afisha_goroda', 'ugc', 'manual', 'advertiser'
     source_url: Mapped[str] = mapped_column(String)
     quality_score: Mapped[float] = mapped_column(Float, server_default=text("0"))
+
+    # Semantic deduplication (vector embedding)
+    embedding: Mapped[Optional[list[float]]] = mapped_column(JSONB, nullable=True)  # Vector for semantic search
 
     # Paid placement (NEW)
     event_type: Mapped[str] = mapped_column(String, server_default=text("'free'"))  # 'free' | 'paid'
@@ -126,7 +138,7 @@ class Event(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "category IN ('concert','theatre','kids','tour','party','expo','other')",
+            "category IN ('concert','theatre','kids','tour','party','expo','other','sport')",
             name="ck_events_category",
         ),
         CheckConstraint(
@@ -144,6 +156,14 @@ class Event(Base):
         CheckConstraint(
             "status IN ('draft','active','past','pending_moderation')",
             name="ck_events_status",
+        ),
+        CheckConstraint(
+            "age_restriction IS NULL OR age_restriction IN ('0+','6+','12+','16+','18+')",
+            name="ck_events_age_restriction",
+        ),
+        CheckConstraint(
+            "ticket_type IS NULL OR ticket_type IN ('sale','booking','free','registration')",
+            name="ck_events_ticket_type",
         ),
         Index("ix_events_date", "date"),
         Index("ix_events_category", "category"),
