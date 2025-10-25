@@ -76,5 +76,6 @@ async def parsers_page(
             "channels": channels,
             "telegram_stats": telegram_stats,
             "telegram_interval": telegram_interval,
+            "csrf_token": request.session.get("csrf_token", ""),
         },
     )
