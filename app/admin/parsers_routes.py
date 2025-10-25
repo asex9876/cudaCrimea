@@ -59,7 +59,7 @@ async def parsers_page(
 
     telegram_stats = {
         "total_channels": len(channels),
-        "active_channels": sum(1 for c in channels if c.is_active),
+        "active_channels": sum(1 for c in channels if c.status == "active"),
     }
 
     # Runtime config for intervals

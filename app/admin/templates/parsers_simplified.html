@@ -414,10 +414,10 @@
                     <div style="flex:1;">
                         <h3 style="font-size:17px;margin-bottom:8px;">
                             @{{ channel.username }}
-                            {% if channel.is_active %}
+                            {% if channel.status == 'active' %}
                             <span class="badge" style="background:#48bb78;color:white;">Активен</span>
                             {% else %}
-                            <span class="badge" style="background:#718096;color:white;">Отключен</span>
+                            <span class="badge" style="background:#718096;color:white;">{{ channel.status }}</span>
                             {% endif %}
                         </h3>
                         {% if channel.title %}
