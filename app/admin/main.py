@@ -702,9 +702,13 @@ async def run_telegram_parsers_manually(
     check_csrf(request, csrf)
 
     try:
-        from app.ingestors.worker import job_tg_channel
-        from app.db.models import TelegramChannel
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        from telethon.errors import ChannelPrivateError, UsernameInvalidError
+        from app.db.models import TelegramChannel, TelegramAccount
+        from app.ingestors.tg_channels import process_and_save_posts
         from sqlalchemy import select
+        import uuid
 
         # Get all active telegram channels
         result = await session.execute(
@@ -716,40 +720,93 @@ async def run_telegram_parsers_manually(
             from fastapi.responses import JSONResponse
             return JSONResponse({"success": False, "error": "Нет активных Telegram каналов"})
 
+        # Get active Telegram account
+        tg_account_id = rc.get("tg_account_id")
+        if not tg_account_id:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"success": False, "error": "Telegram аккаунт не настроен"})
+
+        tg_account = await session.get(TelegramAccount, uuid.UUID(tg_account_id))
+        if not tg_account or tg_account.status != "active":
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"success": False, "error": "Telegram аккаунт неактивен"})
+
         total_posts = 0
         total_events = 0
         processed_channels = []
 
-        # Process each channel using worker function
+        # Process each channel
         for channel in channels:
             try:
-                # Запоминаем значения до обработки
-                posts_before = channel.total_messages_seen
-                events_before = channel.total_parsed
-
-                # Запускаем парсинг через функцию worker
-                await job_tg_channel(str(channel.id))
-
-                # Обновляем объект из БД чтобы получить новые значения
-                await session.refresh(channel)
-
-                posts_count = channel.total_messages_seen - posts_before
-                events_count = channel.total_parsed - events_before
-
-                total_posts += posts_count
-                total_events += events_count
-
-                processed_channels.append({
-                    "username": channel.username,
-                    "posts": posts_count,
-                    "events": events_count
-                })
-                logger.info(
-                    "telegram.manual_run.channel_complete",
-                    channel=channel.username,
-                    posts=posts_count,
-                    events=events_count
+                # Connect to Telegram
+                client = TelegramClient(
+                    StringSession(tg_account.session_string),
+                    tg_account.api_id,
+                    tg_account.api_hash
                 )
+                await client.connect()
+
+                try:
+                    # Get entity
+                    entity = await client.get_entity(channel.username)
+
+                    # Fetch recent messages
+                    posts = []
+                    async for msg in client.iter_messages(entity, limit=50):
+                        media_url = None
+                        if msg.media and msg.file and msg.file.name:
+                            media_url = f"tg://{msg.file.name}"
+
+                        post_url = None
+                        if hasattr(entity, 'username') and entity.username:
+                            post_url = f"https://t.me/{entity.username}/{msg.id}"
+
+                        posts.append({
+                            "channel": channel.username,
+                            "ts": msg.date.isoformat() if msg.date else datetime.utcnow().isoformat(),
+                            "text": msg.message or "",
+                            "media_url": media_url,
+                            "post_url": post_url,
+                        })
+
+                    # Update statistics
+                    posts_count = len(posts)
+                    channel.total_messages_seen += posts_count
+                    channel.last_check_at = datetime.utcnow()
+
+                    # Process posts
+                    events_count = 0
+                    if posts:
+                        events_count = await process_and_save_posts(posts, session)
+                        channel.total_parsed += events_count
+
+                    total_posts += posts_count
+                    total_events += events_count
+
+                    channel.last_error = None
+                    await session.commit()
+
+                    processed_channels.append({
+                        "username": channel.username,
+                        "posts": posts_count,
+                        "events": events_count
+                    })
+                    logger.info(
+                        "telegram.manual_run.channel_complete",
+                        channel=channel.username,
+                        posts=posts_count,
+                        events=events_count
+                    )
+
+                except (ChannelPrivateError, UsernameInvalidError) as e:
+                    logger.warning("telegram.manual_run.access_error", channel=channel.username, error=str(e))
+                    processed_channels.append({
+                        "username": channel.username,
+                        "error": f"Ошибка доступа: {type(e).__name__}"
+                    })
+                finally:
+                    await client.disconnect()
+
             except Exception as e:
                 logger.error(
                     "telegram.manual_run.channel_failed",
