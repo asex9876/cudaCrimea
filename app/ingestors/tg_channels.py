@@ -135,10 +135,13 @@ async def extract_event_from_telegram_post(
 
         # Если пустой JSON - событие не найдено
         if not extracted or not extracted.get("title"):
-            logger.info("tg.extract.no_event", channel=channel, extracted_data=extracted)
+            # Сериализуем в JSON строку чтобы избежать проблем с форматированием
+            logger.info("tg.extract.no_event", channel=channel, extracted_data=json.dumps(extracted) if extracted else "{}")
             return None
 
-        logger.info("tg.extract.success", channel=channel, title=extracted.get("title"))
+        # Заменяем {} в title чтобы избежать ошибок форматирования
+        safe_title = (extracted.get("title") or "").replace("{", "[").replace("}", "]")
+        logger.info("tg.extract.success", channel=channel, title=safe_title)
         return extracted
 
     except Exception as e:
@@ -291,10 +294,12 @@ async def process_and_save_posts(
             session.add(ugc_submission)
             saved_count += 1
 
+            # Заменяем {} в title чтобы избежать ошибок форматирования
+            safe_title = (validated_data.get("title") or "").replace("{", "[").replace("}", "]")
             logger.info(
                 "tg.event_saved",
                 channel=post.get("channel"),
-                title=validated_data.get("title"),
+                title=safe_title,
             )
 
         except Exception as e:
