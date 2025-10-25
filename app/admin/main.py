@@ -131,6 +131,18 @@ app.delete("/parsers/universal-source/{source_id}/delete")(universal_sources_rou
 app.post("/parsers/universal-source/{source_id}/parse")(universal_sources_routes.parse_now)
 app.post("/parsers/universal-source/{source_id}/update")(universal_sources_routes.update_source)
 
+# Import Archive routes
+from app.admin import archive_routes
+
+# Register Archive routes
+app.include_router(archive_routes.router)
+
+# Import simplified Parsers routes
+from app.admin import parsers_routes
+
+# Register Parsers routes (will override old /parsers endpoint)
+app.include_router(parsers_routes.router)
+
 app.post("/monetization/placement-approve")(monetization_routes.monetization_placement_approve)
 app.post("/monetization/placement-reject")(monetization_routes.monetization_placement_reject)
 
@@ -328,10 +340,12 @@ async def jobs_run(
 
 
 # -------- Parsers Management --------
+# NOTE: Old parsers endpoint - replaced by parsers_routes.router
+# Kept for reference, will be removed after full migration
 
 
-@app.get("/parsers", response_class=HTMLResponse)
-async def parsers_page(request: Request, session: AsyncSession = Depends(get_session)) -> Any:
+# @app.get("/parsers", response_class=HTMLResponse)
+async def parsers_page_old(request: Request, session: AsyncSession = Depends(get_session)) -> Any:
     require_login(request)
     csrf = ensure_csrf(request)
 

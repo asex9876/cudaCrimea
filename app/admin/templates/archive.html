@@ -1,0 +1,464 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .archive-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1.5rem;
+    border-radius: 12px;
+    color: white;
+  }
+
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-label {
+    opacity: 0.9;
+    font-size: 0.9rem;
+  }
+
+  .filter-bar {
+    background: var(--card);
+    border: 1px solid #1b254b;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .filter-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .filter-group {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .filter-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+  }
+
+  .filter-group input,
+  .filter-group select {
+    width: 100%;
+  }
+
+  .event-card {
+    background: var(--card);
+    border: 1px solid #1b254b;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s;
+  }
+
+  .event-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+
+  .event-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .event-meta {
+    display: flex;
+    gap: 1rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    flex-wrap: wrap;
+  }
+
+  .event-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .event-description {
+    color: var(--muted);
+    margin-top: 0.75rem;
+    line-height: 1.6;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .badge-archived {
+    background: rgba(113, 128, 150, 0.2);
+    color: #718096;
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+  }
+
+  .pagination button {
+    padding: 0.5rem 1rem;
+    background: var(--card);
+    border: 1px solid #1b254b;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .pagination button:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: white;
+  }
+
+  .pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--muted);
+  }
+
+  .empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+</style>
+
+<div class="archive-header">
+  <div>
+    <h1 style="margin-bottom: 0.5rem;">📦 Архив событий</h1>
+    <p style="color: var(--muted); margin: 0;">Прошедшие события (хранятся 30 дней)</p>
+  </div>
+  <button type="button" class="btn-run" style="background: #f56565;" onclick="cleanupArchive()">
+    🗑️ Очистить старые (>30 дней)
+  </button>
+</div>
+
+<!-- Statistics -->
+<div class="stats-grid">
+  <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="stat-value">{{ stats.total_archived }}</div>
+    <div class="stat-label">Всего в архиве</div>
+  </div>
+
+  <div class="stat-card" style="background: linear-gradient(135deg, #f56565 0%, #c53030 100%);">
+    <div class="stat-value">{{ stats.will_delete }}</div>
+    <div class="stat-label">Будет удалено автоматически</div>
+  </div>
+
+  <div class="stat-card" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
+    <div class="stat-value">
+      {% if stats.oldest_date %}
+        {{ (stats.oldest_date|string)[:10] }}
+      {% else %}
+        -
+      {% endif %}
+    </div>
+    <div class="stat-label">Самое старое событие</div>
+  </div>
+
+  <div class="stat-card" style="background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);">
+    <div class="stat-value">{{ stats.city_stats|length }}</div>
+    <div class="stat-label">Городов в архиве</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label>🏙️ Город</label>
+      <select id="filter_city" onchange="loadEvents()">
+        <option value="">Все города</option>
+        {% for stat in stats.city_stats %}
+        <option value="{{ stat.city }}">{{ stat.city }} ({{ stat.count }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>🎭 Категория</label>
+      <select id="filter_category" onchange="loadEvents()">
+        <option value="">Все категории</option>
+        {% for stat in stats.category_stats %}
+        <option value="{{ stat.category }}">{{ stat.category }} ({{ stat.count }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>📅 Дата от</label>
+      <input type="date" id="filter_date_from" onchange="loadEvents()">
+    </div>
+
+    <div class="filter-group">
+      <label>📅 Дата до</label>
+      <input type="date" id="filter_date_to" onchange="loadEvents()">
+    </div>
+
+    <div class="filter-group">
+      <label>🔍 Поиск</label>
+      <input type="text" id="filter_search" placeholder="Название, место..." onkeyup="debounceSearch()">
+    </div>
+
+    <div class="filter-group" style="flex: 0;">
+      <label>&nbsp;</label>
+      <button type="button" class="btn-run" onclick="resetFilters()">Сбросить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Events List -->
+<div id="events_container"></div>
+
+<!-- Pagination -->
+<div class="pagination" id="pagination" style="display: none;">
+  <button type="button" onclick="previousPage()">← Предыдущая</button>
+  <span id="page_info" style="padding: 0.5rem 1rem;"></span>
+  <button type="button" onclick="nextPage()">Следующая →</button>
+</div>
+
+<script>
+let currentPage = 0;
+const pageSize = 50;
+let totalEvents = 0;
+let searchTimeout = null;
+
+async function loadEvents() {
+  const city = document.getElementById('filter_city').value;
+  const category = document.getElementById('filter_category').value;
+  const dateFrom = document.getElementById('filter_date_from').value;
+  const dateTo = document.getElementById('filter_date_to').value;
+  const search = document.getElementById('filter_search').value;
+
+  const params = new URLSearchParams({
+    limit: pageSize,
+    offset: currentPage * pageSize,
+  });
+
+  if (city) params.append('city', city);
+  if (category) params.append('category', category);
+  if (dateFrom) params.append('date_from', dateFrom);
+  if (dateTo) params.append('date_to', dateTo);
+  if (search) params.append('search', search);
+
+  try {
+    const response = await fetch(`/admin/archive/api/events?${params}`);
+    const data = await response.json();
+
+    totalEvents = data.total;
+    renderEvents(data.events);
+    updatePagination();
+  } catch (error) {
+    console.error('Failed to load events:', error);
+    showNotification('Ошибка загрузки событий', 'error');
+  }
+}
+
+function renderEvents(events) {
+  const container = document.getElementById('events_container');
+
+  if (events.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <div style="font-size: 1.2rem; margin-bottom: 0.5rem;">Нет архивных событий</div>
+        <div>Попробуйте изменить фильтры</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = events.map(event => {
+    const dateStr = event.date;
+    const timeStr = event.time ? ` в ${event.time.substring(0, 5)}` : '';
+    const endDateStr = event.end_date ? ` - ${event.end_date}` : '';
+
+    const price = event.price_min && event.price_max
+      ? `${event.price_min}-${event.price_max} ₽`
+      : event.price_min
+        ? `от ${event.price_min} ₽`
+        : event.price_max
+          ? `до ${event.price_max} ₽`
+          : 'Бесплатно';
+
+    return `
+      <div class="event-card">
+        <div class="event-header">
+          <div style="flex: 1;">
+            <div class="event-title">${escapeHtml(event.title)}</div>
+            <div class="event-meta">
+              <span>📅 ${dateStr}${endDateStr}${timeStr}</span>
+              <span>🏙️ ${event.city}</span>
+              <span>📍 ${escapeHtml(event.venue_name || 'Не указано')}</span>
+              <span>💰 ${price}</span>
+              <span class="badge badge-archived">Архив</span>
+            </div>
+            ${event.description ? `<div class="event-description">${escapeHtml(event.description.substring(0, 200))}${event.description.length > 200 ? '...' : ''}</div>` : ''}
+          </div>
+          <button type="button" class="btn-run" style="background: #f56565; padding: 0.5rem 1rem;" onclick="deleteEvent('${event.id}')">
+            🗑️ Удалить
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updatePagination() {
+  const pagination = document.getElementById('pagination');
+  const pageInfo = document.getElementById('page_info');
+
+  if (totalEvents === 0) {
+    pagination.style.display = 'none';
+    return;
+  }
+
+  pagination.style.display = 'flex';
+
+  const totalPages = Math.ceil(totalEvents / pageSize);
+  const currentPageNum = currentPage + 1;
+
+  pageInfo.textContent = `Страница ${currentPageNum} из ${totalPages} (${totalEvents} событий)`;
+
+  const prevBtn = pagination.querySelector('button:first-child');
+  const nextBtn = pagination.querySelector('button:last-child');
+
+  prevBtn.disabled = currentPage === 0;
+  nextBtn.disabled = currentPage >= totalPages - 1;
+}
+
+function previousPage() {
+  if (currentPage > 0) {
+    currentPage--;
+    loadEvents();
+  }
+}
+
+function nextPage() {
+  const totalPages = Math.ceil(totalEvents / pageSize);
+  if (currentPage < totalPages - 1) {
+    currentPage++;
+    loadEvents();
+  }
+}
+
+function resetFilters() {
+  document.getElementById('filter_city').value = '';
+  document.getElementById('filter_category').value = '';
+  document.getElementById('filter_date_from').value = '';
+  document.getElementById('filter_date_to').value = '';
+  document.getElementById('filter_search').value = '';
+  currentPage = 0;
+  loadEvents();
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    currentPage = 0;
+    loadEvents();
+  }, 500);
+}
+
+async function deleteEvent(eventId) {
+  if (!confirm('Удалить это событие из архива?')) return;
+
+  try {
+    const response = await fetch(`/admin/archive/api/events/${eventId}`, {
+      method: 'DELETE',
+    });
+
+    if (response.ok) {
+      showNotification('Событие удалено', 'success');
+      loadEvents();
+    } else {
+      showNotification('Ошибка удаления события', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to delete event:', error);
+    showNotification('Ошибка удаления события', 'error');
+  }
+}
+
+async function cleanupArchive() {
+  if (!confirm('Удалить все события старше 30 дней? Это действие необратимо.')) return;
+
+  try {
+    const response = await fetch('/admin/archive/api/cleanup', {
+      method: 'POST',
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showNotification(`Удалено ${data.deleted_count} событий`, 'success');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showNotification('Ошибка очистки архива', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to cleanup archive:', error);
+    showNotification('Ошибка очистки архива', 'error');
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function showNotification(message, type = 'info') {
+  // Simple notification (можно заменить на toast library)
+  alert(message);
+}
+
+// Load events on page load
+document.addEventListener('DOMContentLoaded', () => {
+  loadEvents();
+});
+</script>
+
+{% endblock %}
