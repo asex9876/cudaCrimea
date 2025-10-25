@@ -453,10 +453,15 @@ async def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
 async def main_async() -> None:
     s = get_settings()
     setup_logging(s.log_level)
+
+    # Load runtime config from settings.json
+    rc.load_from_file()
+
     scheduler = AsyncIOScheduler()
     await _schedule_jobs(scheduler)
     # Reload schedule every 5 minutes to apply admin changes
     async def reload_schedule():
+        rc.load_from_file()  # Reload settings from file
         await _schedule_jobs(scheduler)
     scheduler.add_job(reload_schedule, IntervalTrigger(minutes=5), id="reload", replace_existing=True)
     scheduler.start()
