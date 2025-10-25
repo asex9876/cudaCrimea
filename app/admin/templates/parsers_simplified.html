@@ -411,7 +411,7 @@
                 <button type="button" class="btn-run" style="background:#48bb78;" onclick="addTelegramChannel()">
                     ➕ Добавить и вступить в канал
                 </button>
-                <button type="button" class="btn-run" style="background:#4299e1;" onclick="runTelegramParsersNow()">
+                <button type="button" class="btn-run" style="background:#4299e1;" onclick="runTelegramParsersNow(event)">
                     ▶️ Запустить парсинг сейчас
                 </button>
                 <button type="button" class="btn-run" style="background:#718096;" onclick="location.href='/admin/telegram-accounts'">
@@ -857,7 +857,7 @@ async function saveTelegramChannel() {
     }
 }
 
-async function runTelegramParsersNow() {
+async function runTelegramParsersNow(event) {
     if (!confirm('Запустить парсинг всех активных Telegram каналов сейчас?')) {
         return;
     }
@@ -867,7 +867,12 @@ async function runTelegramParsersNow() {
     btn.disabled = true;
     btn.innerHTML = '⏳ Парсинг...';
 
+    console.log('Starting Telegram parsers...');
+
     try {
+        console.log('Sending request to /admin/parsers/run-telegram');
+        console.log('CSRF token:', '{{ csrf_token }}');
+
         const response = await fetch('/admin/parsers/run-telegram', {
             method: 'POST',
             headers: {
@@ -878,7 +883,9 @@ async function runTelegramParsersNow() {
             })
         });
 
+        console.log('Response status:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
 
         if (data.success) {
             let message = `✅ Парсинг завершён!\n\n`;
