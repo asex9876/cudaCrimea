@@ -349,9 +349,13 @@ class UGCSubmission(Base):
     # LLM extraction results
     extracted_data: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
+    # AI structuring
+    is_ai_structured: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    parser_source: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 'telegram', 'universal', 'user'
+
     # Moderation
     status: Mapped[str] = mapped_column(String, server_default=text("'pending'"))
-    # 'pending', 'approved', 'rejected', 'auto_approved'
+    # 'pending', 'approved', 'rejected', 'auto_approved', 'parsed' (from automated parsers)
     reject_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     event_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("events.id", ondelete="SET NULL"), nullable=True
@@ -366,11 +370,12 @@ class UGCSubmission(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending','approved','rejected','auto_approved')",
+            "status IN ('pending','approved','rejected','auto_approved','parsed')",
             name="ck_ugc_status",
         ),
         Index("ix_ugc_submissions_status", "status"),
         Index("ix_ugc_submissions_user", "user_id"),
+        Index("ix_ugc_submissions_parsed", "status", "is_ai_structured"),
     )
 
 
