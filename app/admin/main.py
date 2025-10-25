@@ -702,7 +702,7 @@ async def run_telegram_parsers_manually(
     check_csrf(request, csrf)
 
     try:
-        from app.ingestors.tg_channels import fetch_and_process_channel
+        from app.ingestors.worker import job_tg_channel
         from app.db.models import TelegramChannel
         from sqlalchemy import select
 
@@ -720,15 +720,25 @@ async def run_telegram_parsers_manually(
         total_events = 0
         processed_channels = []
 
-        # Process each channel
+        # Process each channel using worker function
         for channel in channels:
             try:
-                posts_count, events_count = await fetch_and_process_channel(
-                    channel_id=str(channel.id),
-                    session=session
-                )
+                # Запоминаем значения до обработки
+                posts_before = channel.total_messages_seen
+                events_before = channel.total_parsed
+
+                # Запускаем парсинг через функцию worker
+                await job_tg_channel(str(channel.id))
+
+                # Обновляем объект из БД чтобы получить новые значения
+                await session.refresh(channel)
+
+                posts_count = channel.total_messages_seen - posts_before
+                events_count = channel.total_parsed - events_before
+
                 total_posts += posts_count
                 total_events += events_count
+
                 processed_channels.append({
                     "username": channel.username,
                     "posts": posts_count,
