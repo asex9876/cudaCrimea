@@ -323,6 +323,119 @@ def extract_image_urls(html: str, base_url: str) -> list[str]:
     return image_urls[:20]
 ```
 
+### Ошибка 6: ModuleNotFoundError после удаления файлов
+
+**Текст ошибки**: `ModuleNotFoundError: No module named 'app.ingestors.normalize'`
+
+**Причина**: При очистке проекта были удалены файлы, которые используются активными парсерами.
+
+**Критически важные файлы, которые НЕЛЬЗЯ удалять**:
+- `app/ingestors/normalize.py` - используется kudago, yandex, goroda, kassa24
+- `app/ingestors/ai_parser_base.py` - используется afisha_goroda, kassa24
+- `app/ingestors/migrate_html_parsers.py` - используется afisha_goroda, kassa24
+- `app/ingestors/contact_extractor.py` - используется ai_parser_base
+
+**Решение**: Восстановить файлы из git истории:
+```bash
+# Найти последний коммит с файлом
+git log --all --full-history --oneline -- app/ingestors/normalize.py
+
+# Восстановить файл
+git show <commit_hash>^:app/ingestors/normalize.py > app/ingestors/normalize.py
+
+# Закоммитить и задеплоить
+git add app/ingestors/normalize.py
+git commit -m "Restore normalize.py required by active parsers"
+git push origin main
+ssh root@5.83.140.80 "cd /opt/cudaCrimea && git pull && docker restart cuda_worker"
+```
+
+### Ошибка 7: Парсеры запланированы но не выполняются
+
+**Текст в логах**: Job scheduled, но нет "Running job" записей
+
+**Причина**: `IntervalTrigger` с `jitter` не выполняет первый запуск немедленно.
+
+**Решение**: Добавить `next_run_time=datetime.now()` при создании джобов:
+```python
+scheduler.add_job(
+    job_tg_channel,
+    IntervalTrigger(minutes=interval, jitter=min(300, interval * 60 // 10)),
+    id=f"tg_{channel.id}",
+    args=[str(channel.id)],
+    replace_existing=True,
+    next_run_time=datetime.now(),  # ← Это критично!
+)
+```
+
+**Файл**: `app/ingestors/worker.py` строки 395, 448
+
+### Ошибка 8: Worker не загружает runtime_config
+
+**Симптом**: `rc.get("tg_account_id")` возвращает `None`, хотя в `settings.json` значение есть.
+
+**Причина**: Worker не вызывает `rc.load_from_file()` при старте.
+
+**Решение**: Добавить загрузку конфига:
+```python
+async def main_async() -> None:
+    s = get_settings()
+    setup_logging(s.log_level)
+
+    # Загрузить runtime config из settings.json
+    rc.load_from_file()
+
+    scheduler = AsyncIOScheduler()
+    await _schedule_jobs(scheduler)
+```
+
+**Файл**: `app/ingestors/worker.py` строки 458, 464
+
+### Ошибка 9: "Replacement index 0 out of range for positional args tuple"
+
+**Причина**: Логирование текста/JSON с фигурными скобками `{}` которые structlog интерпретирует как плейсхолдеры форматирования.
+
+**Решение**: Заменить `{}` на `[]` перед логированием:
+```python
+# ПЛОХО - вызовет ошибку если в тексте есть {}
+logger.info("processing", text=text[:300])
+
+# ХОРОШО - безопасно
+safe_text = text[:300].replace("{", "[").replace("}", "]")
+logger.info("processing", text=safe_text)
+```
+
+**Примеры в коде**:
+- `app/ingestors/tg_channels.py:111` - логирование text_preview
+- `app/ingestors/tg_channels.py:131` - логирование AI response
+
+### Ошибка 10: Telegram парсер не находит события
+
+**Симптом**: `posts_fetched: 50, events_saved: 0` в логах
+
+**Возможные причины**:
+1. AI возвращает пустой JSON `{}`
+2. AI не распознает событие в тексте
+3. Validation не проходит
+4. Logger уровень debug скрывает `tg.extract.no_event`
+
+**Диагностика**: Включить подробное логирование:
+```python
+# Изменить logger.debug на logger.info
+if not extracted or not extracted.get("title"):
+    logger.info("tg.extract.no_event", channel=channel, extracted_data=extracted)  # было debug
+    return None
+
+# Добавить логирование AI ответа
+logger.info("tg.extract.ai_raw_response", channel=channel, response=safe_response)
+```
+
+**Возможные решения**:
+1. Проверить и улучшить TELEGRAM_PARSER_PROMPT
+2. Увеличить `temperature` с 0.1 до 0.3-0.5
+3. Попробовать другую модель (gpt-4o вместо gpt-4o-mini)
+4. Добавить примеры в промпт (few-shot learning)
+
 ---
 
 ## СТРУКТУРА БАЗЫ ДАННЫХ
