@@ -106,6 +106,9 @@ async def extract_event_from_telegram_post(
         text=text
     )
 
+    # Логируем первые 300 символов текста поста для отладки
+    logger.info("tg.extract.processing_post", channel=channel, text_preview=text[:300], text_length=len(text))
+
     try:
         response = await llm_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -122,11 +125,14 @@ async def extract_event_from_telegram_post(
             logger.warning("tg.extract.empty_response", channel=channel)
             return None
 
+        # Логируем сырой ответ от AI для отладки
+        logger.info("tg.extract.ai_raw_response", channel=channel, response=raw_json[:500])
+
         extracted = json.loads(raw_json)
 
         # Если пустой JSON - событие не найдено
         if not extracted or not extracted.get("title"):
-            logger.debug("tg.extract.no_event", channel=channel)
+            logger.info("tg.extract.no_event", channel=channel, extracted_data=extracted)
             return None
 
         logger.info("tg.extract.success", channel=channel, title=extracted.get("title"))
