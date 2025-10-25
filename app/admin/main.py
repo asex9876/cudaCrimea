@@ -1484,7 +1484,8 @@ async def ugc_approve(request: Request, raw: str = Form(...), csrf: str = Form(.
         lon = None
         district = None
     if not draft.title or not draft.date_iso:
-        return RedirectResponse("/ugc?error=invalid", status_code=302)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"success": False, "error": "Недостаточно данных для создания события (требуется название и дата)"}, status_code=400)
 
     # Upsert into events
     from datetime import datetime as _dt

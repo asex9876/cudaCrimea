@@ -634,6 +634,12 @@
     <!-- Bulk Actions Toolbar -->
     <div id="bulkActionsToolbar" class="bulk-actions-toolbar">
       <span class="bulk-actions-count">Выбрано: <span id="selectedCount">0</span></span>
+      <button class="bulk-action-btn approve" id="bulkApproveBtn">
+        <span>✅</span> Подтвердить
+      </button>
+      <button class="bulk-action-btn reject" id="bulkRejectBtn">
+        <span>❌</span> Отклонить
+      </button>
       <button class="bulk-action-btn ai-process" id="bulkAiProcessBtn">
         <span>🤖</span> Обработать AI
       </button>
@@ -824,6 +830,122 @@ document.addEventListener('DOMContentLoaded', () => {
     updateBulkToolbar();
   });
 
+  // Bulk approve button
+  document.getElementById('bulkApproveBtn').addEventListener('click', async () => {
+    if (selectedCards.size === 0) return;
+
+    if (!confirm(`Подтвердить ${selectedCards.size} выбранных событий?`)) {
+      return;
+    }
+
+    const csrf = document.querySelector('input[name="csrf"]').value;
+    let successCount = 0;
+    let errorCount = 0;
+    const cardsToRemove = [];
+
+    for (const itemIndex of selectedCards) {
+      const card = document.querySelector(`.ugc-card[data-item-index="${itemIndex}"]`);
+      if (!card) continue;
+
+      const rawData = card.dataset.itemRaw;
+
+      try {
+        const response = await fetch('/admin/ugc/approve', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: `csrf=${encodeURIComponent(csrf)}&raw=${encodeURIComponent(rawData)}`
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          successCount++;
+          cardsToRemove.push(card);
+        } else {
+          errorCount++;
+          console.error('Failed to approve:', result);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error('Approve error:', error);
+      }
+    }
+
+    // Remove successfully approved cards from DOM
+    cardsToRemove.forEach(card => {
+      card.style.transition = 'opacity 0.3s';
+      card.style.opacity = '0';
+      setTimeout(() => card.remove(), 300);
+    });
+
+    selectedCards.clear();
+    updateBulkToolbar();
+
+    // Show notification
+    const message = `Подтверждено: ${successCount}${errorCount > 0 ? `, ошибок: ${errorCount}` : ''}`;
+    showNotification(message, successCount > 0 ? 'success' : 'error');
+  });
+
+  // Bulk reject button
+  document.getElementById('bulkRejectBtn').addEventListener('click', async () => {
+    if (selectedCards.size === 0) return;
+
+    if (!confirm(`Отклонить ${selectedCards.size} выбранных событий?`)) {
+      return;
+    }
+
+    const csrf = document.querySelector('input[name="csrf"]').value;
+    let successCount = 0;
+    let errorCount = 0;
+    const cardsToRemove = [];
+
+    for (const itemIndex of selectedCards) {
+      const card = document.querySelector(`.ugc-card[data-item-index="${itemIndex}"]`);
+      if (!card) continue;
+
+      const rawData = card.dataset.itemRaw;
+
+      try {
+        const response = await fetch('/admin/ugc/reject', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: `csrf=${encodeURIComponent(csrf)}&raw=${encodeURIComponent(rawData)}`
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          successCount++;
+          cardsToRemove.push(card);
+        } else {
+          errorCount++;
+          console.error('Failed to reject:', result);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error('Reject error:', error);
+      }
+    }
+
+    // Remove successfully rejected cards from DOM
+    cardsToRemove.forEach(card => {
+      card.style.transition = 'opacity 0.3s';
+      card.style.opacity = '0';
+      setTimeout(() => card.remove(), 300);
+    });
+
+    selectedCards.clear();
+    updateBulkToolbar();
+
+    // Show notification
+    const message = `Отклонено: ${successCount}${errorCount > 0 ? `, ошибок: ${errorCount}` : ''}`;
+    showNotification(message, successCount > 0 ? 'success' : 'error');
+  });
+
   // Bulk delete button
   document.getElementById('bulkDeleteBtn').addEventListener('click', async () => {
     if (selectedCards.size === 0) return;
@@ -952,6 +1074,67 @@ document.addEventListener('DOMContentLoaded', () => {
       aiBtn.innerHTML = originalText;
     }
   });
+
+  // Notification toast function
+  function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification-toast notification-${type}`;
+    notification.textContent = message;
+
+    document.body.appendChild(notification);
+
+    // Trigger animation
+    setTimeout(() => {
+      notification.classList.add('show');
+    }, 10);
+
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      notification.classList.remove('show');
+      setTimeout(() => {
+        notification.remove();
+      }, 300);
+    }, 3000);
+  }
 });
 </script>
+
+<style>
+.notification-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  opacity: 0;
+  transform: translateX(400px);
+  transition: all 0.3s ease-in-out;
+}
+
+.notification-toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.notification-success {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+}
+
+.notification-error {
+  background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+}
+
+.notification-info {
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+}
+
+.notification-warning {
+  background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+}
+</style>
 {% endblock %}
