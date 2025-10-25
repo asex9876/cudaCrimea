@@ -388,6 +388,15 @@
                     </div>
                     <div class="col" style="flex:1;">
                         <div class="setting-group">
+                            <label>⏱️ Интервал парсинга (минут)</label>
+                            <input type="number" id="tg_channel_interval" value="45" min="5" max="1440">
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                От 5 минут до 24 часов
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
                             <label>⚙️ Статус</label>
                             <select id="tg_channel_status">
                                 <option value="active" selected>Активен (парсить сразу)</option>
@@ -475,15 +484,19 @@
                     </div>
                     {% endif %}
 
-                    <div style="margin-top:12px;display:flex;gap:12px;font-size:12px;color:#999;">
+                    <div style="margin-top:12px;display:flex;gap:12px;font-size:12px;color:#999;flex-wrap:wrap;">
                         <div>📅 Добавлен: <strong style="color:var(--fg);">{{ channel.added_at.strftime('%Y-%m-%d %H:%M') }}</strong></div>
                         {% if channel.last_check_at %}
                         <div>🕐 Последняя проверка: <strong style="color:var(--fg);">{{ channel.last_check_at.strftime('%Y-%m-%d %H:%M') }}</strong></div>
                         {% endif %}
+                        <div>⏱️ Интервал парсинга: <strong style="color:var(--accent);">{{ channel.parse_interval_minutes }} мин</strong></div>
                     </div>
                 </div>
 
                 <div class="parser-actions" style="margin-top:16px;">
+                    <button type="button" class="btn-run" onclick="editTelegramChannel('{{ channel.id }}', '{{ channel.username }}', {{ channel.parse_interval_minutes }})">
+                        ✏️ Редактировать
+                    </button>
                     <button type="button" class="btn-run" style="background:#f56565;" onclick="deleteTelegramChannel('{{ channel.id }}')">
                         🗑️ Удалить канал
                     </button>
@@ -539,8 +552,38 @@
     </div>
 </div>
 
+<!-- Edit Telegram Channel Modal -->
+<div id="editTelegramModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--card);border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;">
+        <h3 style="margin-bottom:20px;">✏️ Редактировать Telegram канал</h3>
+
+        <div class="setting-group">
+            <label>📱 Username</label>
+            <input type="text" id="edit_tg_username" disabled style="background:#2d3748;cursor:not-allowed;">
+        </div>
+
+        <div class="setting-group">
+            <label>⏱️ Интервал парсинга (минут) *</label>
+            <input type="number" id="edit_tg_interval" min="5" max="1440" required>
+            <small style="color:var(--muted);font-size:12px;margin-top:4px;display:block;">
+                Как часто проверять канал на новые сообщения (5-1440 минут)
+            </small>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:24px;">
+            <button type="button" class="btn-run" style="background:#718096;flex:1;" onclick="closeEditTelegramModal()">
+                Отмена
+            </button>
+            <button type="button" class="btn-run" style="background:#48bb78;flex:1;" onclick="saveTelegramChannel()">
+                💾 Сохранить
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 let currentEditSourceId = null;
+let currentEditChannelId = null;
 
 // Tab switching
 function switchTab(tabName) {
@@ -698,9 +741,15 @@ async function deleteUniversalSource(sourceId) {
 async function addTelegramChannel() {
     const input = document.getElementById('tg_channel_input').value.trim();
     const status = document.getElementById('tg_channel_status').value;
+    const interval = parseInt(document.getElementById('tg_channel_interval').value);
 
     if (!input) {
         alert('Введите username или ссылку на канал');
+        return;
+    }
+
+    if (!interval || interval < 5 || interval > 1440) {
+        alert('Интервал должен быть от 5 до 1440 минут');
         return;
     }
 
@@ -708,7 +757,7 @@ async function addTelegramChannel() {
         const response = await fetch('/admin/telegram-channels/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ input, status })
+            body: JSON.stringify({ input, status, parse_interval_minutes: interval })
         });
 
         const data = await response.json();
@@ -760,6 +809,48 @@ async function deleteTelegramChannel(channelId) {
     } catch (error) {
         console.error('Error deleting channel:', error);
         alert('Ошибка при удалении канала');
+    }
+}
+
+function editTelegramChannel(channelId, username, interval) {
+    currentEditChannelId = channelId;
+    document.getElementById('edit_tg_username').value = username;
+    document.getElementById('edit_tg_interval').value = interval;
+    document.getElementById('editTelegramModal').style.display = 'flex';
+}
+
+function closeEditTelegramModal() {
+    document.getElementById('editTelegramModal').style.display = 'none';
+    currentEditChannelId = null;
+}
+
+async function saveTelegramChannel() {
+    if (!currentEditChannelId) return;
+
+    const interval = parseInt(document.getElementById('edit_tg_interval').value);
+
+    if (!interval || interval < 5 || interval > 1440) {
+        alert('Интервал должен быть от 5 до 1440 минут');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin/telegram-channels/${currentEditChannelId}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parse_interval_minutes: interval })
+        });
+
+        if (response.ok) {
+            alert('Канал обновлён!');
+            location.reload();
+        } else {
+            const data = await response.json();
+            alert('Ошибка: ' + (data.detail || 'Не удалось обновить канал'));
+        }
+    } catch (error) {
+        console.error('Error updating channel:', error);
+        alert('Ошибка при обновлении канала');
     }
 }
 </script>

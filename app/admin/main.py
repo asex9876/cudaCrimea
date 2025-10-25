@@ -94,6 +94,7 @@ from app.admin import telegram_channel_routes
 app.post("/telegram-channels/verify")(telegram_channel_routes.verify_telegram_channel)
 app.post("/telegram-channels/add")(telegram_channel_routes.add_channel_json)  # JSON API for parsers page
 app.post("/telegram-channels/{channel_id}/toggle")(telegram_channel_routes.toggle_channel_json)  # Toggle active/paused
+app.post("/telegram-channels/{channel_id}/update")(telegram_channel_routes.update_channel_json)  # Update channel settings
 app.post("/telegram-channels/{channel_id}/delete")(telegram_channel_routes.delete_channel_json)  # Delete channel
 app.get("/telegram-channels/list")(telegram_channel_routes.list_telegram_channels)
 

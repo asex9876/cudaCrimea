@@ -18,8 +18,9 @@ from app.core.logging import setup_logging
 from app.db.session import get_sessionmaker
 from app.ingestors import afisha_goroda, kassa24, yandex_afisha, kudago
 from app.ingestors.tg_channels import fetch_posts, process_and_save_posts
-from app.db.models import Event
+from app.db.models import Event, TelegramChannel, TelegramAccount
 import sqlalchemy as sa
+from sqlalchemy import select
 
 
 logger = structlog.get_logger(module="worker")
@@ -51,13 +52,128 @@ async def job_kudago(city: str) -> None:
 
 
 async def job_tg() -> None:
-    """Telegram parser с AI извлечением - сохраняет в UGC очередь."""
+    """Telegram parser с AI извлечением - сохраняет в UGC очередь.
+
+    DEPRECATED: This function is kept for backward compatibility with old settings.
+    New installations should use per-channel jobs scheduled in _schedule_jobs.
+    """
     ss = get_sessionmaker()
     async with ss() as session:  # type: ignore[call-arg]
         posts = await fetch_posts(limit=50)
         if posts:
             count = await process_and_save_posts(posts, session)
             logger.info("worker.tg.completed", posts_fetched=len(posts), events_saved=count)
+
+
+async def job_tg_channel(channel_id: str) -> None:
+    """Parse a specific Telegram channel and save events to UGC queue.
+
+    Args:
+        channel_id: UUID of the TelegramChannel to parse
+    """
+    from telethon import TelegramClient
+    from telethon.sessions import StringSession
+    from telethon.errors import ChannelPrivateError, UsernameInvalidError
+    import uuid
+
+    ss = get_sessionmaker()
+    async with ss() as session:  # type: ignore[call-arg]
+        try:
+            # Get channel from database
+            channel = await session.get(TelegramChannel, uuid.UUID(channel_id))
+            if not channel:
+                logger.warning("worker.tg_channel.not_found", channel_id=channel_id)
+                return
+
+            if channel.status != "active":
+                logger.debug("worker.tg_channel.not_active", channel_id=channel_id, status=channel.status)
+                return
+
+            # Get active Telegram account
+            tg_account_id = rc.get("tg_account_id")
+            if not tg_account_id:
+                logger.warning("worker.tg_channel.no_account", channel_id=channel_id)
+                channel.last_error = "No Telegram account configured"
+                await session.commit()
+                return
+
+            tg_account = await session.get(TelegramAccount, uuid.UUID(tg_account_id))
+            if not tg_account or tg_account.status != "active":
+                logger.warning("worker.tg_channel.account_inactive", channel_id=channel_id)
+                channel.last_error = "Telegram account not active"
+                await session.commit()
+                return
+
+            # Connect to Telegram
+            client = TelegramClient(
+                StringSession(tg_account.session_string),
+                tg_account.api_id,
+                tg_account.api_hash
+            )
+            await client.connect()
+
+            try:
+                # Get entity
+                entity = await client.get_entity(channel.username)
+
+                # Fetch recent messages
+                posts = []
+                async for msg in client.iter_messages(entity, limit=50):
+                    media_url = None
+                    if msg.media and msg.file and msg.file.name:
+                        media_url = f"tg://{msg.file.name}"
+
+                    post_url = None
+                    if hasattr(entity, 'username') and entity.username:
+                        post_url = f"https://t.me/{entity.username}/{msg.id}"
+
+                    posts.append({
+                        "channel": channel.username,
+                        "ts": msg.date.isoformat() if msg.date else datetime.utcnow().isoformat(),
+                        "text": msg.message or "",
+                        "media_url": media_url,
+                        "post_url": post_url,
+                    })
+
+                # Update statistics
+                channel.total_messages_seen += len(posts)
+                channel.last_check_at = datetime.utcnow()
+
+                # Process posts
+                if posts:
+                    events_saved = await process_and_save_posts(posts, session)
+                    channel.total_parsed += events_saved
+                    logger.info(
+                        "worker.tg_channel.completed",
+                        channel_id=channel_id,
+                        username=channel.username,
+                        posts_fetched=len(posts),
+                        events_saved=events_saved
+                    )
+                else:
+                    logger.debug("worker.tg_channel.no_posts", channel_id=channel_id, username=channel.username)
+
+                channel.last_error = None
+                await session.commit()
+
+            except (ChannelPrivateError, UsernameInvalidError) as e:
+                logger.warning("worker.tg_channel.access_error", channel_id=channel_id, error=str(e))
+                channel.last_error = f"Access error: {type(e).__name__}"
+                await session.commit()
+            finally:
+                await client.disconnect()
+
+        except Exception as e:
+            logger.error("worker.tg_channel.failed", channel_id=channel_id, error=str(e), error_type=type(e).__name__)
+            # Try to update error in database
+            try:
+                async with ss() as err_session:  # type: ignore[call-arg]
+                    channel = await err_session.get(TelegramChannel, uuid.UUID(channel_id))
+                    if channel:
+                        channel.last_error = f"{type(e).__name__}: {str(e)[:100]}"
+                        await err_session.commit()
+            except:
+                pass
 
 
 async def job_archive_past_events() -> None:
@@ -204,7 +320,7 @@ async def run_queue(stop_event: asyncio.Event) -> None:
         await redis.aclose()
 
 
-def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
+async def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
     # Remove existing ingest jobs
     for job in list(scheduler.get_jobs()):
         if job.id not in {"reload"}:
@@ -257,8 +373,35 @@ def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
             )
     if k_enabled:
         scheduler.add_job(job_kassa24, IntervalTrigger(hours=max(1, int(k_hours)), jitter=7200), id="kassa24", replace_existing=True)
+
+    # Telegram channels - per-channel scheduling with individual intervals
     if t_enabled:
-        scheduler.add_job(job_tg, IntervalTrigger(minutes=max(5, int(t_minutes)), jitter=900), id="tg", replace_existing=True)
+        # Query active Telegram channels from database
+        ss = get_sessionmaker()
+        async with ss() as session:  # type: ignore[call-arg]
+            result = await session.execute(
+                select(TelegramChannel).where(TelegramChannel.status == "active")
+            )
+            active_channels = result.scalars().all()
+
+            for channel in active_channels:
+                interval = max(5, channel.parse_interval_minutes)  # Minimum 5 minutes
+                scheduler.add_job(
+                    job_tg_channel,
+                    IntervalTrigger(minutes=interval, jitter=min(300, interval * 60 // 10)),  # 10% jitter
+                    id=f"tg_{channel.id}",
+                    args=[str(channel.id)],
+                    replace_existing=True,
+                )
+                logger.info(
+                    "worker.schedule.telegram_channel",
+                    channel_id=str(channel.id),
+                    username=channel.username,
+                    interval_minutes=interval
+                )
+
+            if active_channels:
+                logger.info("worker.schedule.telegram_channels_total", count=len(active_channels))
 
     # KudaGo - самый надёжный источник с API
     if kudago_enabled:
@@ -309,9 +452,11 @@ async def main_async() -> None:
     s = get_settings()
     setup_logging(s.log_level)
     scheduler = AsyncIOScheduler()
-    _schedule_jobs(scheduler)
+    await _schedule_jobs(scheduler)
     # Reload schedule every 5 minutes to apply admin changes
-    scheduler.add_job(lambda: _schedule_jobs(scheduler), IntervalTrigger(minutes=5), id="reload", replace_existing=True)
+    async def reload_schedule():
+        await _schedule_jobs(scheduler)
+    scheduler.add_job(reload_schedule, IntervalTrigger(minutes=5), id="reload", replace_existing=True)
     scheduler.start()
     logger.info("worker.started")
     stop_event = asyncio.Event()

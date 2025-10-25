@@ -605,6 +605,9 @@ class TelegramChannel(Base):
     last_check_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Last error message
 
+    # Parsing settings
+    parse_interval_minutes: Mapped[int] = mapped_column(Integer, server_default=text("45"))  # How often to parse this channel
+
     # Statistics
     total_messages_seen: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # Total messages in channel since we started tracking
     total_parsed: Mapped[int] = mapped_column(Integer, server_default=text("0"))  # How many we parsed

@@ -281,6 +281,7 @@ from pydantic import BaseModel
 class AddChannelRequest(BaseModel):
     input: str  # Username or URL
     status: str = "active"
+    parse_interval_minutes: int = 45  # How often to parse this channel
 
 
 async def add_channel_json(
@@ -383,6 +384,7 @@ async def add_channel_json(
                 is_verified=True,
                 last_check_at=datetime.utcnow(),
                 added_by="admin",
+                parse_interval_minutes=data.parse_interval_minutes,
             )
             session.add(channel)
             await session.commit()
@@ -472,4 +474,43 @@ async def delete_channel_json(
 
     except Exception as e:
         logger.error("telegram_channel.delete_json.error", error=str(e))
+        return JSONResponse({"success": False, "detail": str(e)}, status_code=500)
+
+
+class UpdateChannelRequest(BaseModel):
+    parse_interval_minutes: int
+
+
+async def update_channel_json(
+    request: Request,
+    channel_id: str,
+    data: UpdateChannelRequest,
+    session: AsyncSession = Depends(get_session),
+) -> JSONResponse:
+    """Update a Telegram channel's settings."""
+    from app.admin.main import require_login
+
+    require_login(request)
+
+    try:
+        channel = await session.get(TelegramChannel, uuid.UUID(channel_id))
+        if not channel:
+            return JSONResponse({"success": False, "detail": "Канал не найден"}, status_code=404)
+
+        # Validate interval
+        if data.parse_interval_minutes < 5 or data.parse_interval_minutes > 1440:
+            return JSONResponse({
+                "success": False,
+                "detail": "Интервал должен быть от 5 до 1440 минут"
+            }, status_code=400)
+
+        # Update channel
+        channel.parse_interval_minutes = data.parse_interval_minutes
+        await session.commit()
+
+        logger.info("telegram_channel.update_json.success", channel_id=channel_id, interval=data.parse_interval_minutes)
+        return JSONResponse({"success": True})
+
+    except Exception as e:
+        logger.error("telegram_channel.update_json.error", error=str(e))
         return JSONResponse({"success": False, "detail": str(e)}, status_code=500)
