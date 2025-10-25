@@ -66,7 +66,8 @@ class Event(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     title: Mapped[str] = mapped_column(String)
-    date: Mapped[date] = mapped_column(Date)
+    date: Mapped[date] = mapped_column(Date)  # Event start date
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # Event end date (for multi-day events)
     time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
 
     # Pricing

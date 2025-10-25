@@ -57,44 +57,98 @@ async def job_tg() -> None:
 
 
 async def job_archive_past_events() -> None:
-    """Архивация событий, которые уже прошли (дата + время < сейчас)."""
+    """Архивация событий по дате начала (date) или дате окончания (end_date).
+
+    Логика:
+    - Если есть end_date: архивировать когда end_date + end_time < сейчас
+    - Если нет end_date: архивировать когда date + time < сейчас
+    """
     ss = get_sessionmaker()
     async with ss() as session:  # type: ignore[call-arg]
         try:
             now = datetime.now()
 
-            # Находим все активные события, у которых дата и время уже прошли
-            stmt = (
+            # 1. События без end_date - архивируем по дате начала
+            stmt_past = (
                 sa.update(Event)
                 .where(Event.status == "active")
-                .where(Event.date < now.date())  # События с датой раньше сегодня
+                .where(Event.end_date.is_(None))
+                .where(Event.date < now.date())
                 .values(status="past")
+            )
+            result = await session.execute(stmt_past)
+            await session.commit()
+            if result.rowcount > 0:
+                logger.info("worker.archive.past_date", count=result.rowcount)
+
+            # Сегодняшние события без end_date, время прошло
+            stmt_today = (
+                sa.update(Event)
+                .where(Event.status == "active")
+                .where(Event.end_date.is_(None))
+                .where(Event.date == now.date())
+                .where(Event.time.isnot(None))
+                .where(Event.time < now.time())
+                .values(status="past")
+            )
+            result = await session.execute(stmt_today)
+            await session.commit()
+            if result.rowcount > 0:
+                logger.info("worker.archive.today", count=result.rowcount)
+
+            # 2. Многодневные события (с end_date) - по дате окончания
+            stmt_multi_past = (
+                sa.update(Event)
+                .where(Event.status == "active")
+                .where(Event.end_date.isnot(None))
+                .where(Event.end_date < now.date())
+                .values(status="past")
+            )
+            result = await session.execute(stmt_multi_past)
+            await session.commit()
+            if result.rowcount > 0:
+                logger.info("worker.archive.multiday_past", count=result.rowcount)
+
+            # Многодневные события, конец сегодня, время прошло
+            stmt_multi_today = (
+                sa.update(Event)
+                .where(Event.status == "active")
+                .where(Event.end_date == now.date())
+                .where(Event.end_time.isnot(None))
+                .where(Event.end_time < now.time())
+                .values(status="past")
+            )
+            result = await session.execute(stmt_multi_today)
+            await session.commit()
+            if result.rowcount > 0:
+                logger.info("worker.archive.multiday_today", count=result.rowcount)
+
+        except Exception as e:
+            logger.error("worker.archive.error", error=str(e))
+            await session.rollback()
+
+
+async def job_cleanup_old_archive() -> None:
+    """Удаление архивных событий старше 1 месяца для экономии места."""
+    ss = get_sessionmaker()
+    async with ss() as session:  # type: ignore[call-arg]
+        try:
+            # Удаляем события старше 1 месяца (30 дней)
+            cutoff_date = datetime.now().date() - timedelta(days=30)
+
+            stmt = (
+                sa.delete(Event)
+                .where(Event.status == "past")
+                .where(Event.date < cutoff_date)
             )
             result = await session.execute(stmt)
             await session.commit()
 
-            archived_count = result.rowcount
-            if archived_count > 0:
-                logger.info("worker.archive_events", archived_count=archived_count)
-
-            # Архивируем сегодняшние события, у которых время уже прошло
-            stmt_today = (
-                sa.update(Event)
-                .where(Event.status == "active")
-                .where(Event.date == now.date())  # События сегодня
-                .where(Event.time.isnot(None))  # У которых есть время
-                .where(Event.time < now.time())  # И время уже прошло
-                .values(status="past")
-            )
-            result_today = await session.execute(stmt_today)
-            await session.commit()
-
-            archived_today = result_today.rowcount
-            if archived_today > 0:
-                logger.info("worker.archive_events_today", archived_count=archived_today)
+            if result.rowcount > 0:
+                logger.info("worker.cleanup_archive", deleted_count=result.rowcount, cutoff_date=str(cutoff_date))
 
         except Exception as e:
-            logger.error("worker.archive_events.error", error=str(e))
+            logger.error("worker.cleanup_archive.error", error=str(e))
             await session.rollback()
 
 
@@ -222,6 +276,16 @@ def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
         replace_existing=True,
     )
     logger.info("worker.schedule.archive_past_events", interval_minutes=30)
+
+    # Cleanup старых архивных событий каждые 24 часа (в 03:00)
+    from apscheduler.triggers.cron import CronTrigger
+    scheduler.add_job(
+        job_cleanup_old_archive,
+        CronTrigger(hour=3, minute=0),  # Каждый день в 3:00
+        id="cleanup_old_archive",
+        replace_existing=True,
+    )
+    logger.info("worker.schedule.cleanup_archive", schedule="daily_03:00")
 
     # Universal AI parser - парсит все активные источники каждые 30 минут
     universal_parser_enabled = bool(rc.get("ingest_universal_parser_enabled", True))

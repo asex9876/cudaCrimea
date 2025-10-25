@@ -15,12 +15,12 @@ import structlog
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import UniversalSource, Event
+from app.db.models import UniversalSource, UGCSubmission
 from app.core.config import get_settings
-from app.db.dao.events import upsert_event
 from app.core.services.geocoding import GeocodingService
 from app.core.services.validation import get_validation_service
 from app.core.services.embedding import get_embedding_service
+import uuid
 
 logger = structlog.get_logger(module="universal_parser")
 
@@ -279,47 +279,60 @@ async def process_source(
                     "address": draft.address,
                 })
 
-                # Create event
-                event = await upsert_event(
-                    session,
-                    title=draft.title,
-                    date_=validated_data["date"],
-                    time_=validated_data.get("time"),
-                    city=source.city,
-                    venue_name=draft.venue_name or "Не указано",
-                    address=validated_data.get("address") or draft.address or "",
-                    lat=lat,
-                    lon=lon,
-                    district=district,
-                    price_min=validated_data.get("price_min"),
-                    price_max=validated_data.get("price_max"),
-                    category=draft.category or "other",
-                    source=f"universal:{source.name}",
-                    source_url=draft.source_url or source.url,
-                    quality_base=0.7,  # Universal sources get medium quality
-                )
-
-                # Update extended fields
-                event.age_restriction = draft.age_restriction
-                event.organizer = draft.organizer
-                event.end_time = validated_data.get("end_time")
-                event.duration_minutes = validated_data.get("duration_minutes")
-                event.ticket_type = draft.ticket_type
+                # Prepare extracted data for UGC
+                extracted_data = {
+                    "title": draft.title,
+                    "date": str(validated_data["date"]),
+                    "time": str(validated_data.get("time")) if validated_data.get("time") else None,
+                    "end_time": str(validated_data.get("end_time")) if validated_data.get("end_time") else None,
+                    "duration_minutes": validated_data.get("duration_minutes"),
+                    "city": source.city,
+                    "venue_name": draft.venue_name or "Не указано",
+                    "address": validated_data.get("address") or draft.address or "",
+                    "lat": lat,
+                    "lon": lon,
+                    "district": district,
+                    "price_min": validated_data.get("price_min"),
+                    "price_max": validated_data.get("price_max"),
+                    "category": draft.category or "other",
+                    "age_restriction": draft.age_restriction,
+                    "organizer": draft.organizer,
+                    "ticket_type": draft.ticket_type,
+                    "source": f"universal:{source.name}",
+                    "source_url": draft.source_url or source.url,
+                }
 
                 # Generate embedding
+                embedding_vector = None
                 try:
-                    embedding = embedding_service.generate_event_embedding(
-                        title=event.title,
-                        date=str(event.date),
-                        venue=event.venue_name,
+                    embedding_vector = embedding_service.generate_event_embedding(
+                        title=draft.title,
+                        date=str(validated_data["date"]),
+                        venue=draft.venue_name or "Не указано",
                         description=None,
                     )
-                    event.embedding = embedding
                 except Exception as e:
                     logger.warning("universal_parser.embedding_failed", error=str(e))
 
+                if embedding_vector:
+                    extracted_data["embedding"] = embedding_vector
+
+                # Create UGC submission with parsed status
+                ugc_submission = UGCSubmission(
+                    id=uuid.uuid4(),
+                    user_id=0,  # System user for parsers
+                    raw_text=f"Parsed from {source.url}",
+                    source_url=draft.source_url or source.url,
+                    extracted_data=extracted_data,
+                    is_ai_structured=True,
+                    parser_source="universal",
+                    status="parsed",  # Parsed events ready for moderation
+                )
+
+                session.add(ugc_submission)
+
                 added_count += 1
-                logger.info("universal_parser.event_added", title=draft.title)
+                logger.info("universal_parser.event_to_ugc", title=draft.title)
 
             except Exception as e:
                 logger.error("universal_parser.event_process_failed", error=str(e), event=event_data)
