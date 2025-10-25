@@ -575,31 +575,8 @@ async def run_parser_manually(
             count = await kassa24.ingest(session)
             logger.info("parsers.run.kassa24", count=count)
 
-        elif parser == "afisha82":
-            from app.ingestors import afisha82_ru
-            count = await afisha82_ru.ingest(session)
-            logger.info("parsers.run.afisha82", count=count)
-
-        elif parser == "kassa24":
-            from app.ingestors import sevastopol_kassa24
-            count = await sevastopol_kassa24.ingest(session)
-            logger.info("parsers.run.kassa24", count=count)
-
-        elif parser == "culture":
-            from app.ingestors import culture_ru
-            count = await culture_ru.ingest(session)
-            logger.info("parsers.run.culture", count=count)
-
-        elif parser == "afisha_ru":
-            from app.ingestors import afisha_ru_sevastopol
-            count = await afisha_ru_sevastopol.ingest(session)
-            logger.info("parsers.run.afisha_ru", count=count)
-
-        elif parser == "tg":
-            from app.ingestors import telegram_channels
-            days = rc.get("ingest_tg_days", 7)
-            count = await telegram_channels.ingest(session, limit_days=days)
-            logger.info("parsers.run.telegram", count=count, days=days)
+        # Старые парсеры удалены (afisha82, kassa24, culture, afisha_ru, tg)
+        # Теперь используются: kudago, yandex, goroda, kassa24 (новый), universal_parser, telegram (через worker)
 
         else:
             return {"success": False, "error": "Unknown parser", "parser": parser}

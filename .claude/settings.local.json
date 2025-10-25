@@ -3,7 +3,20 @@
     "allow": [
       "Bash(sshpass -p '91LHdsru:T.9T7' ssh -o StrictHostKeyChecking=no root@5.83.140.80 \"docker exec cuda_db psql -U cudacrimea -d cudacrimea -c \"\"SELECT query, lat, lon, district, created_at FROM geocoding_cache WHERE query LIKE ''%фадеева%'' OR query LIKE ''%fadee%'' ORDER BY created_at DESC LIMIT 5;\"\"\")",
       "Bash(dir \"c:\\Users\\sanve\\OneDrive\\Рабочий стол\\cudaCrimea\" /s /b)",
-      "Read(//c/**)"
+      "Read(//c/**)",
+      "Bash(dir \"C:\\Users\\sanve\\.ssh\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ssh -i \"C:\\Users\\sanve\\.ssh\\cudacrimea_key\" -o StrictHostKeyChecking=no root@5.83.140.80 \"cd /opt/cudaCrimea && git pull origin main\")",
+      "Bash(ssh:*)",
+      "Bash(sshpass -p '91LHdsru:T.9T7' ssh -o StrictHostKeyChecking=no root@5.83.140.80 \"cd /opt/cudaCrimea && git pull origin main\")",
+      "Bash(powershell -Command \"echo ''91LHdsru:T.9T7'' | ssh root@5.83.140.80 ''cd /opt/cudaCrimea && git pull origin main''\")",
+      "Bash(where:*)",
+      "Bash(sshpass -p '91LHdsru:T.9T7' ssh -o StrictHostKeyChecking=no root@5.83.140.80 \"cd /opt/cudaCrimea && git pull origin main && docker compose restart cuda_api cuda_worker\")",
+      "Bash(powershell -Command \"echo ''91LHdsru:T.9T7'' | ssh root@5.83.140.80 ''cd /opt/cudaCrimea && git pull origin main && docker compose restart cuda_api cuda_worker''\")",
+      "Bash(dir:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
