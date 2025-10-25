@@ -691,6 +691,91 @@ async def set_telegram_parser_status(
     return JSONResponse({"success": True, "status": status})
 
 
+@app.post("/parsers/run-telegram")
+async def run_telegram_parsers_manually(
+    request: Request,
+    csrf: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Manually trigger Telegram channel parsing for all active channels."""
+    require_login(request)
+    check_csrf(request, csrf)
+
+    try:
+        from app.ingestors.tg_channels import fetch_and_process_channel
+        from app.db.models import TelegramChannel
+        from sqlalchemy import select
+
+        # Get all active telegram channels
+        result = await session.execute(
+            select(TelegramChannel).where(TelegramChannel.status == "active")
+        )
+        channels = result.scalars().all()
+
+        if not channels:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"success": False, "error": "Нет активных Telegram каналов"})
+
+        total_posts = 0
+        total_events = 0
+        processed_channels = []
+
+        # Process each channel
+        for channel in channels:
+            try:
+                posts_count, events_count = await fetch_and_process_channel(
+                    channel_id=str(channel.id),
+                    session=session
+                )
+                total_posts += posts_count
+                total_events += events_count
+                processed_channels.append({
+                    "username": channel.username,
+                    "posts": posts_count,
+                    "events": events_count
+                })
+                logger.info(
+                    "telegram.manual_run.channel_complete",
+                    channel=channel.username,
+                    posts=posts_count,
+                    events=events_count
+                )
+            except Exception as e:
+                logger.error(
+                    "telegram.manual_run.channel_failed",
+                    channel=channel.username,
+                    error=str(e)
+                )
+                processed_channels.append({
+                    "username": channel.username,
+                    "error": str(e)
+                })
+
+        logger.info(
+            "telegram.manual_run.complete",
+            channels=len(channels),
+            total_posts=total_posts,
+            total_events=total_events
+        )
+
+        from fastapi.responses import JSONResponse
+        return JSONResponse({
+            "success": True,
+            "channels_processed": len(channels),
+            "total_posts": total_posts,
+            "total_events": total_events,
+            "details": processed_channels
+        })
+
+    except Exception as e:
+        logger.error("telegram.manual_run.error", error=str(e))
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+
 # -------- Events CRUD --------
 
 

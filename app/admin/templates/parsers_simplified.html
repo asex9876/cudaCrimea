@@ -411,6 +411,9 @@
                 <button type="button" class="btn-run" style="background:#48bb78;" onclick="addTelegramChannel()">
                     ➕ Добавить и вступить в канал
                 </button>
+                <button type="button" class="btn-run" style="background:#4299e1;" onclick="runTelegramParsersNow()">
+                    ▶️ Запустить парсинг сейчас
+                </button>
                 <button type="button" class="btn-run" style="background:#718096;" onclick="location.href='/admin/telegram-accounts'">
                     ⚙️ Настроить Telegram аккаунты
                 </button>
@@ -851,6 +854,60 @@ async function saveTelegramChannel() {
     } catch (error) {
         console.error('Error updating channel:', error);
         alert('Ошибка при обновлении канала');
+    }
+}
+
+async function runTelegramParsersNow() {
+    if (!confirm('Запустить парсинг всех активных Telegram каналов сейчас?')) {
+        return;
+    }
+
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Парсинг...';
+
+    try {
+        const response = await fetch('/admin/parsers/run-telegram', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                csrf: '{{ csrf_token }}'
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            let message = `✅ Парсинг завершён!\n\n`;
+            message += `Обработано каналов: ${data.channels_processed}\n`;
+            message += `Всего постов: ${data.total_posts}\n`;
+            message += `Найдено событий: ${data.total_events}\n\n`;
+
+            if (data.details && data.details.length > 0) {
+                message += 'Детали по каналам:\n';
+                data.details.forEach(ch => {
+                    if (ch.error) {
+                        message += `\n@${ch.username}: ❌ ${ch.error}`;
+                    } else {
+                        message += `\n@${ch.username}: ${ch.posts} постов, ${ch.events} событий`;
+                    }
+                });
+            }
+
+            alert(message);
+            location.reload();
+        } else {
+            alert('Ошибка: ' + (data.error || 'Не удалось запустить парсинг'));
+        }
+    } catch (error) {
+        console.error('Error running parsers:', error);
+        alert('Ошибка при запуске парсинга');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }
 </script>
