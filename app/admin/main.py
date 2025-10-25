@@ -1297,11 +1297,11 @@ async def admin_logout(request: Request) -> Any:
 
 
 @app.get("/ugc", response_class=HTMLResponse)
-async def ugc_list(request: Request, queue: str = "all", redis: aioredis.Redis = Depends(get_redis)) -> Any:
+async def ugc_list(request: Request, queue: str = "all", redis: aioredis.Redis = Depends(get_redis), session: AsyncSession = Depends(get_session)) -> Any:
     require_login(request)
     csrf = ensure_csrf(request)
 
-    # Fetch from queues based on filter
+    # Fetch from Redis queues (old system)
     items_raw = []
     if queue == "all":
         items_raw.extend(await redis.lrange("ugc:queue", 0, 199))
@@ -1313,6 +1313,29 @@ async def ugc_list(request: Request, queue: str = "all", redis: aioredis.Redis =
         items_raw.extend(await redis.lrange("ugc:queue:paid", 0, 199))
     elif queue == "parser":
         items_raw.extend(await redis.lrange("ugc:queue:parser", 0, 199))
+
+    # Fetch from PostgreSQL ugc_submissions table (new system - Telegram & Universal parsers)
+    # Only fetch if queue is "all" or "parser"
+    if queue in ("all", "parser"):
+        from sqlalchemy import select
+        stmt = select(UGCSubmission).where(UGCSubmission.status == "parsed").order_by(UGCSubmission.created_at.desc()).limit(200)
+        result = await session.execute(stmt)
+        ugc_submissions = result.scalars().all()
+
+        # Convert UGCSubmission objects to JSON strings (compatible with Redis format)
+        for submission in ugc_submissions:
+            ugc_data = {
+                "ugc_id": str(submission.id),
+                "raw_text": submission.raw_text or "",
+                "source_url": submission.source_url,
+                "form": submission.extracted_data,
+                "images": [],
+                "source": "parser",
+                "parser_name": submission.parser_source or "unknown",
+                "ts": submission.created_at.isoformat() if submission.created_at else None,
+                "is_ai_structured": submission.is_ai_structured,
+            }
+            items_raw.append(json.dumps(ugc_data, ensure_ascii=False))
 
     items = items_raw
     enriched: list[dict[str, Any]] = []
@@ -1516,18 +1539,54 @@ async def ugc_approve(request: Request, raw: str = Form(...), csrf: str = Form(.
     await redis.lrem("ugc:queue", 1, raw)
     await redis.lrem("ugc:queue:paid", 1, raw)
     await redis.lrem("ugc:queue:parser", 1, raw)
+
+    # If this is from ugc_submissions table, mark as approved and track the event
+    ugc_id = data.get("ugc_id")
+    if ugc_id:
+        try:
+            import uuid
+            submission = await session.get(UGCSubmission, uuid.UUID(ugc_id))
+            if submission:
+                submission.status = "approved"
+                submission.approved_event_id = ev.id
+                await session.commit()
+                logger.info("ugc.approve.from_db", ugc_id=ugc_id, event_id=str(ev.id))
+        except Exception as e:
+            logger.error("ugc.approve.update_failed", ugc_id=ugc_id, error=str(e))
+
     from fastapi.responses import JSONResponse
     return JSONResponse({"success": True, "message": "Событие успешно опубликовано", "event_id": str(ev.id)})
 
 
 @app.post("/ugc/reject")
-async def ugc_reject(request: Request, raw: str = Form(...), csrf: str = Form(...), redis: aioredis.Redis = Depends(get_redis)) -> Any:
+async def ugc_reject(request: Request, raw: str = Form(...), csrf: str = Form(...), redis: aioredis.Redis = Depends(get_redis), session: AsyncSession = Depends(get_session)) -> Any:
     require_login(request)
     check_csrf(request, csrf)
+
+    # Parse data to check if it's from ugc_submissions
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = {}
+
     # Remove from all queues (try all three, only one will have it)
     await redis.lrem("ugc:queue", 1, raw)
     await redis.lrem("ugc:queue:paid", 1, raw)
     await redis.lrem("ugc:queue:parser", 1, raw)
+
+    # If this is from ugc_submissions table, mark as rejected
+    ugc_id = data.get("ugc_id")
+    if ugc_id:
+        try:
+            import uuid
+            submission = await session.get(UGCSubmission, uuid.UUID(ugc_id))
+            if submission:
+                submission.status = "rejected"
+                await session.commit()
+                logger.info("ugc.reject.from_db", ugc_id=ugc_id)
+        except Exception as e:
+            logger.error("ugc.reject.update_failed", ugc_id=ugc_id, error=str(e))
+
     from fastapi.responses import JSONResponse
     return JSONResponse({"success": True, "message": "Событие отклонено"})
 
