@@ -4,31 +4,42 @@ from __future__ import annotations
 
 from datetime import datetime, date, timedelta
 from typing import Optional
+from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import sqlalchemy as sa
 
-from app.admin.auth import get_current_admin_user, require_login
-from app.core import templates
-from app.db.models import Event, User
+from app.db.models import Event
 from app.db.session import get_session
 
 logger = structlog.get_logger(module="admin.archive")
 router = APIRouter(prefix="/admin/archive", tags=["admin-archive"])
 
 
+def get_templates() -> Jinja2Templates:
+    """Get Jinja2 templates instance."""
+    return Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def require_login(request: Request) -> None:
+    """Check if user is authenticated."""
+    if not request.session.get("auth") and not request.headers.get("X-Remote-User"):
+        raise HTTPException(status_code=302, detail="redirect", headers={"Location": "/login"})
+
+
 @router.get("", response_class=HTMLResponse)
-@require_login
 async def archive_page(
     request: Request,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_admin_user),
 ) -> HTMLResponse:
     """Страница архивных событий."""
+    require_login(request)
+    templates = get_templates()
 
     # Статистика архива
     total_archived_stmt = sa.select(func.count(Event.id)).where(Event.status == "past")
@@ -88,8 +99,8 @@ async def archive_page(
 
 
 @router.get("/api/events", response_class=JSONResponse)
-@require_login
 async def get_archived_events(
+    request: Request,
     city: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
@@ -98,9 +109,9 @@ async def get_archived_events(
     limit: int = Query(50, le=500),
     offset: int = Query(0),
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_admin_user),
 ) -> JSONResponse:
     """API для получения архивных событий с фильтрацией."""
+    require_login(request)
 
     # Базовый запрос
     conditions = [Event.status == "past"]
@@ -180,13 +191,13 @@ async def get_archived_events(
 
 
 @router.delete("/api/events/{event_id}")
-@require_login
 async def delete_archived_event(
+    request: Request,
     event_id: str,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_admin_user),
 ) -> JSONResponse:
     """Удалить конкретное архивное событие."""
+    require_login(request)
 
     # Проверяем что событие в архиве
     stmt = sa.select(Event).where(Event.id == event_id, Event.status == "past")
@@ -205,12 +216,12 @@ async def delete_archived_event(
 
 
 @router.post("/api/cleanup")
-@require_login
 async def manual_cleanup(
+    request: Request,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_admin_user),
 ) -> JSONResponse:
     """Ручная очистка архива (старше 30 дней)."""
+    require_login(request)
 
     cutoff_date = datetime.now().date() - timedelta(days=30)
 

@@ -2,31 +2,43 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin.auth import get_current_admin_user, require_login
-from app.core import templates, runtime_config as rc
-from app.db.models import UniversalSource, TelegramChannel, User
+from app.core import runtime_config as rc
+from app.db.models import UniversalSource, TelegramChannel
 from app.db.session import get_session
 
 logger = structlog.get_logger(module="admin.parsers")
 router = APIRouter(prefix="/admin/parsers", tags=["admin-parsers"])
 
 
+def get_templates() -> Jinja2Templates:
+    """Get Jinja2 templates instance."""
+    return Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def require_login(request: Request) -> None:
+    """Check if user is authenticated."""
+    if not request.session.get("auth") and not request.headers.get("X-Remote-User"):
+        raise HTTPException(status_code=302, detail="redirect", headers={"Location": "/login"})
+
+
 @router.get("", response_class=HTMLResponse)
-@require_login
 async def parsers_page(
     request: Request,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_admin_user),
 ) -> HTMLResponse:
     """Страница парсеров - Universal Web Parser + Telegram AI Parser."""
+    require_login(request)
+    templates = get_templates()
 
     # === Universal Sources ===
     universal_sources = (await session.execute(
