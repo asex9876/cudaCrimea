@@ -18,7 +18,7 @@ from app.db.models import Event
 from app.db.session import get_session
 
 logger = structlog.get_logger(module="admin.archive")
-router = APIRouter(prefix="/admin/archive", tags=["admin-archive"])
+router = APIRouter(prefix="/archive", tags=["admin-archive"])
 
 
 def get_templates() -> Jinja2Templates:

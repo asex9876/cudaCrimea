@@ -17,7 +17,7 @@ from app.db.models import UniversalSource, TelegramChannel
 from app.db.session import get_session
 
 logger = structlog.get_logger(module="admin.parsers")
-router = APIRouter(prefix="/admin/parsers", tags=["admin-parsers"])
+router = APIRouter(prefix="/parsers", tags=["admin-parsers"])
 
 
 def get_templates() -> Jinja2Templates:
