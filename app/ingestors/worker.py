@@ -17,7 +17,7 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.session import get_sessionmaker
 from app.ingestors import afisha_goroda, kassa24, yandex_afisha, kudago
-from app.ingestors.tg_channels import enqueue_posts, fetch_posts
+from app.ingestors.tg_channels import fetch_posts, process_and_save_posts
 from app.db.models import Event
 import sqlalchemy as sa
 
@@ -51,9 +51,13 @@ async def job_kudago(city: str) -> None:
 
 
 async def job_tg() -> None:
-    posts = await fetch_posts(limit=50)
-    if posts:
-        await enqueue_posts(posts)
+    """Telegram parser с AI извлечением - сохраняет в UGC очередь."""
+    ss = get_sessionmaker()
+    async with ss() as session:  # type: ignore[call-arg]
+        posts = await fetch_posts(limit=50)
+        if posts:
+            count = await process_and_save_posts(posts, session)
+            logger.info("worker.tg.completed", posts_fetched=len(posts), events_saved=count)
 
 
 async def job_archive_past_events() -> None:
