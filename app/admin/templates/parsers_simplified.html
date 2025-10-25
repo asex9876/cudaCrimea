@@ -366,39 +366,44 @@
             </div>
         </div>
 
-        <div class="parser-card">
+        <!-- Add New Telegram Channel -->
+        <div class="parser-card" style="background:linear-gradient(135deg,rgba(102,126,234,0.05),rgba(118,75,162,0.05));border:2px dashed var(--accent);">
             <div class="parser-header">
                 <div>
-                    <h3>📱 Telegram AI Парсер</h3>
-                    <p class="parser-description">
-                        Автоматическое извлечение событий из Telegram каналов с помощью AI.<br>
-                        AI анализирует текст постов и извлекает: название, дату, время, место, цену, категорию и т.д.
-                    </p>
+                    <h3 style="color:var(--accent);">➕ Добавить Telegram канал/группу</h3>
+                    <p class="parser-description">Бот автоматически вступит в канал и начнет парсить события</p>
                 </div>
             </div>
 
             <div class="parser-settings">
-                <div class="setting-group">
-                    <label>⚙️ Настройки парсера</label>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
-                        <div style="background:var(--card);padding:12px;border-radius:8px;border:1px solid #1b254b;">
-                            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Интервал парсинга</div>
-                            <div style="font-size:20px;font-weight:600;color:var(--accent);">{{ telegram_interval }} минут</div>
+                <div class="row" style="display:flex;gap:16px;margin-bottom:16px;">
+                    <div class="col" style="flex:2;">
+                        <div class="setting-group">
+                            <label>📱 Username или ссылка *</label>
+                            <input type="text" id="tg_channel_input" placeholder="@channel_name или https://t.me/channel_name" required>
+                            <small style="display:block;margin-top:4px;color:#999;font-size:12px;">
+                                Можно указать username канала (@myeventschannel) или полную ссылку
+                            </small>
                         </div>
-                        <div style="background:var(--card);padding:12px;border-radius:8px;border:1px solid #1b254b;">
-                            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Режим работы</div>
-                            <div style="font-size:20px;font-weight:600;color:#48bb78;">AI-Автомат</div>
+                    </div>
+                    <div class="col" style="flex:1;">
+                        <div class="setting-group">
+                            <label>⚙️ Статус</label>
+                            <select id="tg_channel_status">
+                                <option value="active" selected>Активен (парсить сразу)</option>
+                                <option value="paused">Пауза</option>
+                            </select>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="parser-actions">
-                <button type="button" class="btn-run" onclick="location.href='/admin/telegram-accounts'">
-                    ⚙️ Настроить Telegram аккаунты
+                <button type="button" class="btn-run" style="background:#48bb78;" onclick="addTelegramChannel()">
+                    ➕ Добавить и вступить в канал
                 </button>
-                <button type="button" class="btn-run" onclick="location.href='/admin/ugc'">
-                    📋 Посмотреть спарсенные события
+                <button type="button" class="btn-run" style="background:#718096;" onclick="location.href='/admin/telegram-accounts'">
+                    ⚙️ Настроить Telegram аккаунты
                 </button>
             </div>
         </div>
@@ -413,9 +418,17 @@
                 <div class="parser-header">
                     <div style="flex:1;">
                         <h3 style="font-size:17px;margin-bottom:8px;">
+                            {% if channel.url %}
+                            <a href="{{ channel.url }}" target="_blank" style="color:var(--accent);text-decoration:none;">@{{ channel.username }}</a>
+                            {% else %}
                             @{{ channel.username }}
+                            {% endif %}
                             {% if channel.status == 'active' %}
                             <span class="badge" style="background:#48bb78;color:white;">Активен</span>
+                            {% elif channel.status == 'paused' %}
+                            <span class="badge" style="background:#ed8936;color:white;">На паузе</span>
+                            {% elif channel.status == 'error' %}
+                            <span class="badge" style="background:#f56565;color:white;">Ошибка</span>
                             {% else %}
                             <span class="badge" style="background:#718096;color:white;">{{ channel.status }}</span>
                             {% endif %}
@@ -424,12 +437,56 @@
                         <p class="parser-description">{{ channel.title }}</p>
                         {% endif %}
                     </div>
+                    <label class="parser-toggle">
+                        <input type="checkbox" {% if channel.status == 'active' %}checked{% endif %}
+                               onchange="toggleTelegramChannel('{{ channel.id }}')">
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
 
-                <div class="parser-settings">
-                    <div style="font-size:13px;color:#999;">
-                        📅 Добавлен: <strong style="color:var(--fg);">{{ channel.added_at.strftime('%Y-%m-%d %H:%M') }}</strong>
+                <!-- Statistics -->
+                <div class="parser-settings" style="margin-top:16px;background:rgba(102,126,234,0.05);padding:16px;border-radius:8px;">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+                        <div>
+                            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">📊 Всего сообщений</div>
+                            <div style="font-size:24px;font-weight:600;color:var(--accent);">{{ channel.total_messages_seen }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">🎯 Событий извлечено</div>
+                            <div style="font-size:24px;font-weight:600;color:#48bb78;">{{ channel.total_parsed }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">✅ Опубликовано</div>
+                            <div style="font-size:24px;font-weight:600;color:#4299e1;">{{ channel.total_published }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">📈 Успешность</div>
+                            {% set success_rate = (channel.total_parsed / channel.total_messages_seen * 100) if channel.total_messages_seen > 0 else 0 %}
+                            <div style="font-size:24px;font-weight:600;color:{% if success_rate > 10 %}#48bb78{% elif success_rate > 5 %}#ed8936{% else %}#f56565{% endif %};">
+                                {{ "%.1f"|format(success_rate) }}%
+                            </div>
+                        </div>
                     </div>
+
+                    {% if channel.last_error %}
+                    <div style="margin-top:12px;padding:10px;background:rgba(245,101,101,0.1);border-left:3px solid #f56565;border-radius:4px;">
+                        <div style="font-size:12px;color:#fc8181;font-weight:600;margin-bottom:4px;">⚠️ Последняя ошибка:</div>
+                        <div style="font-size:12px;color:#feb2b2;">{{ channel.last_error }}</div>
+                    </div>
+                    {% endif %}
+
+                    <div style="margin-top:12px;display:flex;gap:12px;font-size:12px;color:#999;">
+                        <div>📅 Добавлен: <strong style="color:var(--fg);">{{ channel.added_at.strftime('%Y-%m-%d %H:%M') }}</strong></div>
+                        {% if channel.last_check_at %}
+                        <div>🕐 Последняя проверка: <strong style="color:var(--fg);">{{ channel.last_check_at.strftime('%Y-%m-%d %H:%M') }}</strong></div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="parser-actions" style="margin-top:16px;">
+                    <button type="button" class="btn-run" style="background:#f56565;" onclick="deleteTelegramChannel('{{ channel.id }}')">
+                        🗑️ Удалить канал
+                    </button>
                 </div>
             </div>
             {% endfor %}
@@ -634,6 +691,75 @@ async function deleteUniversalSource(sourceId) {
     } catch (error) {
         console.error('Error deleting source:', error);
         alert('Ошибка при удалении источника');
+    }
+}
+
+// Telegram Channel Functions
+async function addTelegramChannel() {
+    const input = document.getElementById('tg_channel_input').value.trim();
+    const status = document.getElementById('tg_channel_status').value;
+
+    if (!input) {
+        alert('Введите username или ссылку на канал');
+        return;
+    }
+
+    try {
+        const response = await fetch('/admin/telegram-channels/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input, status })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert('Канал добавлен! Бот вступает в канал...');
+            location.reload();
+        } else {
+            alert('Ошибка: ' + (data.detail || 'Не удалось добавить канал'));
+        }
+    } catch (error) {
+        console.error('Error adding channel:', error);
+        alert('Ошибка при добавлении канала');
+    }
+}
+
+async function toggleTelegramChannel(channelId) {
+    try {
+        const response = await fetch(`/admin/telegram-channels/${channelId}/toggle`, {
+            method: 'POST',
+        });
+
+        if (response.ok) {
+            console.log('Channel toggled successfully');
+        } else {
+            alert('Ошибка при переключении канала');
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Error toggling channel:', error);
+        alert('Ошибка при переключении канала');
+    }
+}
+
+async function deleteTelegramChannel(channelId) {
+    if (!confirm('Удалить этот канал? Парсинг будет остановлен.')) return;
+
+    try {
+        const response = await fetch(`/admin/telegram-channels/${channelId}/delete`, {
+            method: 'POST',
+        });
+
+        if (response.ok) {
+            alert('Канал удалён!');
+            location.reload();
+        } else {
+            alert('Ошибка при удалении канала');
+        }
+    } catch (error) {
+        console.error('Error deleting channel:', error);
+        alert('Ошибка при удалении канала');
     }
 }
 </script>

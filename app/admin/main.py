@@ -92,8 +92,9 @@ from app.admin import telegram_channel_routes
 
 # Register Telegram channel management API routes (UI is in /parsers page)
 app.post("/telegram-channels/verify")(telegram_channel_routes.verify_telegram_channel)
-app.post("/telegram-channels/add")(telegram_channel_routes.add_telegram_channel)
-app.post("/telegram-channels/delete")(telegram_channel_routes.delete_telegram_channel)
+app.post("/telegram-channels/add")(telegram_channel_routes.add_channel_json)  # JSON API for parsers page
+app.post("/telegram-channels/{channel_id}/toggle")(telegram_channel_routes.toggle_channel_json)  # Toggle active/paused
+app.post("/telegram-channels/{channel_id}/delete")(telegram_channel_routes.delete_channel_json)  # Delete channel
 app.get("/telegram-channels/list")(telegram_channel_routes.list_telegram_channels)
 
 # Import Monetization routes

@@ -272,3 +272,204 @@ async def list_telegram_channels(
             "success": False,
             "error": f"Ошибка загрузки: {str(e)[:100]}"
         })
+
+
+# New JSON-based endpoints for parsers page
+from pydantic import BaseModel
+
+
+class AddChannelRequest(BaseModel):
+    input: str  # Username or URL
+    status: str = "active"
+
+
+async def add_channel_json(
+    request: Request,
+    data: AddChannelRequest,
+    session: AsyncSession = Depends(get_session),
+) -> JSONResponse:
+    """Add Telegram channel with auto-join (JSON API for parsers page)."""
+    from app.admin.main import require_login
+
+    require_login(request)
+
+    logger.info("telegram_channel.add_json", input=data.input, status=data.status)
+
+    try:
+        # Clean up input to extract username
+        username = data.input.strip()
+
+        # Handle different URL formats
+        if username.startswith("https://t.me/"):
+            username = username.replace("https://t.me/", "")
+        elif username.startswith("http://t.me/"):
+            username = username.replace("http://t.me/", "")
+        elif username.startswith("@"):
+            username = username[1:]
+
+        # Remove trailing slashes or query params
+        username = username.split("/")[0].split("?")[0].strip()
+
+        if not username:
+            return JSONResponse({
+                "success": False,
+                "detail": "Неверный формат ссылки"
+            }, status_code=400)
+
+        # Check if channel already exists
+        existing = (await session.execute(
+            select(TelegramChannel).where(TelegramChannel.username == username)
+        )).scalar_one_or_none()
+
+        if existing:
+            return JSONResponse({
+                "success": False,
+                "detail": "Этот канал уже добавлен"
+            }, status_code=400)
+
+        # Get active Telegram account
+        tg_account_id = rc.get("tg_account_id")
+        if not tg_account_id:
+            return JSONResponse({
+                "success": False,
+                "detail": "Telegram аккаунт не настроен. Добавьте аккаунт в разделе 'Телеграм аккаунты'"
+            }, status_code=400)
+
+        tg_account = await session.get(TelegramAccount, uuid.UUID(tg_account_id))
+        if not tg_account or tg_account.status != "active":
+            return JSONResponse({
+                "success": False,
+                "detail": "Telegram аккаунт не активен"
+            }, status_code=400)
+
+        # Connect to Telegram and join channel
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        from telethon.errors import UsernameInvalidError, UsernameNotOccupiedError, ChannelPrivateError
+
+        client = TelegramClient(
+            StringSession(tg_account.session_string),
+            tg_account.api_id,
+            tg_account.api_hash
+        )
+        await client.connect()
+
+        try:
+            # Get entity
+            entity = await client.get_entity(username)
+
+            # Try to join if it's a channel or group
+            try:
+                from telethon.tl.functions.channels import JoinChannelRequest
+                await client(JoinChannelRequest(entity))
+                logger.info("telegram_channel.joined", username=username)
+            except Exception as join_error:
+                # It's okay if we can't join (might be already joined, or it's a chat)
+                logger.warning("telegram_channel.join_failed", username=username, error=str(join_error))
+
+            # Get channel info
+            title = getattr(entity, "title", username)
+            channel_id = entity.id
+            url = f"https://t.me/{username}"
+
+            # Create new channel in database
+            channel = TelegramChannel(
+                id=uuid.uuid4(),
+                username=username,
+                title=title,
+                channel_id=channel_id,
+                url=url,
+                status=data.status,
+                is_verified=True,
+                last_check_at=datetime.utcnow(),
+                added_by="admin",
+            )
+            session.add(channel)
+            await session.commit()
+
+            logger.info("telegram_channel.add_json.success", channel_id=str(channel.id), username=username)
+
+            return JSONResponse({
+                "success": True,
+                "message": "Канал добавлен и бот вступил в него",
+                "channel_id": str(channel.id),
+                "username": username,
+                "title": title
+            })
+
+        except (UsernameInvalidError, UsernameNotOccupiedError):
+            return JSONResponse({
+                "success": False,
+                "detail": "Канал не найден"
+            }, status_code=404)
+        except ChannelPrivateError:
+            return JSONResponse({
+                "success": False,
+                "detail": "Канал приватный. Бот должен быть добавлен администратором канала"
+            }, status_code=400)
+        finally:
+            await client.disconnect()
+
+    except Exception as e:
+        logger.error("telegram_channel.add_json.error", error=str(e), error_type=type(e).__name__)
+        return JSONResponse({
+            "success": False,
+            "detail": f"Ошибка: {str(e)[:100]}"
+        }, status_code=500)
+
+
+async def toggle_channel_json(
+    request: Request,
+    channel_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> JSONResponse:
+    """Toggle channel active/paused status."""
+    from app.admin.main import require_login
+
+    require_login(request)
+
+    try:
+        channel = await session.get(TelegramChannel, uuid.UUID(channel_id))
+        if not channel:
+            return JSONResponse({"success": False, "detail": "Канал не найден"}, status_code=404)
+
+        # Toggle status
+        if channel.status == "active":
+            channel.status = "paused"
+        else:
+            channel.status = "active"
+
+        await session.commit()
+
+        logger.info("telegram_channel.toggle", channel_id=channel_id, new_status=channel.status)
+        return JSONResponse({"success": True, "status": channel.status})
+
+    except Exception as e:
+        logger.error("telegram_channel.toggle.error", error=str(e))
+        return JSONResponse({"success": False, "detail": str(e)}, status_code=500)
+
+
+async def delete_channel_json(
+    request: Request,
+    channel_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> JSONResponse:
+    """Delete a Telegram channel."""
+    from app.admin.main import require_login
+
+    require_login(request)
+
+    try:
+        channel = await session.get(TelegramChannel, uuid.UUID(channel_id))
+        if not channel:
+            return JSONResponse({"success": False, "detail": "Канал не найден"}, status_code=404)
+
+        await session.delete(channel)
+        await session.commit()
+
+        logger.info("telegram_channel.delete_json.success", channel_id=channel_id)
+        return JSONResponse({"success": True})
+
+    except Exception as e:
+        logger.error("telegram_channel.delete_json.error", error=str(e))
+        return JSONResponse({"success": False, "detail": str(e)}, status_code=500)
