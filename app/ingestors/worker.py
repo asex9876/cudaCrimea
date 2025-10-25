@@ -392,6 +392,7 @@ async def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
                     id=f"tg_{channel.id}",
                     args=[str(channel.id)],
                     replace_existing=True,
+                    next_run_time=datetime.now(),  # Run immediately on startup
                 )
                 logger.info(
                     "worker.schedule.telegram_channel",
@@ -444,6 +445,7 @@ async def _schedule_jobs(scheduler: AsyncIOScheduler) -> None:
             IntervalTrigger(minutes=max(5, int(universal_parser_minutes)), jitter=300),
             id="universal_parser",
             replace_existing=True,
+            next_run_time=datetime.now(),  # Run immediately on startup
         )
         logger.info("worker.schedule.universal_parser", interval_minutes=universal_parser_minutes)
 
