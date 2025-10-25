@@ -64,8 +64,8 @@ def _get_llm_client():
 
 
 def _get_geocoding_service():
-    from app.core.services.geocoding import get_geocoding_service
-    return get_geocoding_service()
+    from app.core.services.geocoding import GeocodingService
+    return GeocodingService
 
 
 def _get_embedding_service():
@@ -190,7 +190,8 @@ async def process_and_save_posts(
     Returns:
         Количество успешно обработанных событий
     """
-    geocoding_service = _get_geocoding_service()
+    GeocodingService = _get_geocoding_service()
+    geocoding_service = GeocodingService(session)
     embedding_service = _get_embedding_service()
     validator = _get_validator()
 
