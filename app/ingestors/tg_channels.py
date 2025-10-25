@@ -107,7 +107,9 @@ async def extract_event_from_telegram_post(
     )
 
     # Логируем первые 300 символов текста поста для отладки
-    logger.info("tg.extract.processing_post", channel=channel, text_preview=text[:300], text_length=len(text))
+    # Заменяем {} на [] чтобы избежать проблем с форматированием
+    safe_preview = text[:300].replace("{", "[").replace("}", "]")
+    logger.info("tg.extract.processing_post", channel=channel, text_preview=safe_preview, text_length=len(text))
 
     try:
         response = await llm_client.chat.completions.create(
@@ -125,8 +127,9 @@ async def extract_event_from_telegram_post(
             logger.warning("tg.extract.empty_response", channel=channel)
             return None
 
-        # Логируем сырой ответ от AI для отладки
-        logger.info("tg.extract.ai_raw_response", channel=channel, response=raw_json[:500])
+        # Логируем сырой ответ от AI для отладки (заменяем {} чтобы избежать ошибок форматирования)
+        safe_response = raw_json[:500].replace("{", "[").replace("}", "]")
+        logger.info("tg.extract.ai_raw_response", channel=channel, response=safe_response)
 
         extracted = json.loads(raw_json)
 
