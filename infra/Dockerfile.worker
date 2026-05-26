@@ -10,7 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_HTTP_TIMEOUT=1200 \
     POETRY_MAX_WORKERS=1
 
-RUN curl -sSL https://install.python-poetry.org | python3 -
+RUN pip install poetry
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
 WORKDIR /app

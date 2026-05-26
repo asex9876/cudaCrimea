@@ -10,7 +10,7 @@ from app.bot.keyboards.common import place_actions_kb_with_back, request_locatio
 from app.bot.states import NearbyFoodStates
 from app.bot.utils.render import render_place_card
 from app.core.services.geo import yandex_deeplink
-from app.bot.context import USER_CITY
+from app.bot.context import get_user_city
 
 
 router = Router()
@@ -34,7 +34,7 @@ async def on_location(message: Message, state: FSMContext) -> None:
     lat = loc.latitude
     lon = loc.longitude
 
-    user_city = USER_CITY.get(message.from_user.id if message.from_user else 0, "Севастополь")
+    user_city = await get_user_city(message.from_user.id if message.from_user else 0)
     params = {
         "city": user_city,
         "when": "today",

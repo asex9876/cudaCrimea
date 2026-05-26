@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import structlog
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 
 from app.core.config import get_settings
 from app.core.logging import setup_logging
@@ -39,7 +39,8 @@ async def run_bot() -> None:
         raise SystemExit("BOT_TOKEN is not configured")
 
     bot = Bot(token=token)
-    dp = Dispatcher(storage=MemoryStorage())
+    storage = RedisStorage.from_url(str(settings.redis_url))
+    dp = Dispatcher(storage=storage)
 
     # Middlewares (order matters!)
     # 1. Album middleware - must be FIRST to collect media groups

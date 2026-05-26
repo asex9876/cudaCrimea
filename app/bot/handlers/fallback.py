@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
-from app.bot.context import USER_CITY
+from app.bot.context import set_user_city
 
 
 router = Router()
@@ -32,7 +32,7 @@ async def show_menu(message: Message) -> None:
 async def set_city_anytime(message: Message) -> None:
     city = _CITIES[(message.text or "").strip().lower()]
     if message.from_user:
-        USER_CITY[message.from_user.id] = city
+        await set_user_city(message.from_user.id, city)
     await message.answer(f"Город установлен: {city}", reply_markup=_menu_kb())
 
 

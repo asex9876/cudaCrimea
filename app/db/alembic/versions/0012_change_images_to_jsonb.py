@@ -22,13 +22,14 @@ def upgrade() -> None:
     # Use USING clause to convert existing string data to JSONB
     # NULL values will remain NULL, empty strings will become NULL
     op.execute("""
-        ALTER TABLE events
-        ALTER COLUMN images
-        TYPE JSONB
-        USING CASE
-            WHEN images IS NULL OR images = '' THEN NULL
-            ELSE images::jsonb
-        END
+        DO $$
+        BEGIN
+            IF (SELECT data_type FROM information_schema.columns
+                WHERE table_name='events' AND column_name='images') = 'character varying' THEN
+                ALTER TABLE events ALTER COLUMN images TYPE JSONB
+                USING CASE WHEN images IS NULL OR images = '' THEN NULL ELSE images::jsonb END;
+            END IF;
+        END $$;
     """)
 
 

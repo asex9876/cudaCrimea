@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.client import api_search
-from app.bot.context import USER_CITY
+from app.bot.context import get_user_city
 from app.bot.keyboards.common import INTEREST_CATEGORIES, event_actions_kb_with_back, interests_kb, when_kb
 from app.bot.states import WhatToDoStates
 from app.bot.utils.render import render_event_card
@@ -161,7 +161,7 @@ async def choose_when(cb: CallbackQuery, state: FSMContext) -> None:
         chat_id = cb.message.chat.id
         await cb.answer("Ищу горячие события…")
         await _wtd_ui_update(cb.message.bot, state, chat_id, "Ищу горячие события…")
-        city = USER_CITY.get(cb.from_user.id if cb.from_user else 0, "Севастополь")
+        city = await get_user_city(cb.from_user.id if cb.from_user else 0)
         params = {"city": city, "when": "hot", "budget_max": None, "categories": None}
         try:
             resp = await api_search(params)
@@ -218,7 +218,7 @@ async def choose_interests(cb: CallbackQuery, state: FSMContext) -> None:
         await _wtd_ui_update(cb.message.bot, state, chat_id, "Ищу варианты…")
         when = data.get("when", "today")
         budget = data.get("budget")
-        city = USER_CITY.get(cb.from_user.id if cb.from_user else 0, "Севастополь")
+        city = await get_user_city(cb.from_user.id if cb.from_user else 0)
         params = {"city": city, "when": when, "budget_max": budget, "categories": list(chosen) or None}
         try:
             resp = await api_search(params)

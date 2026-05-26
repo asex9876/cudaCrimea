@@ -7,7 +7,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 
 from app.bot.keyboards.common import cities_kb, main_menu_kb
 from app.bot.states import StartStates
-from app.bot.context import USER_CITY
+from app.bot.context import get_user_city, has_user_city, set_user_city
 
 
 router = Router()
@@ -15,8 +15,7 @@ router = Router()
 
 @router.message(CommandStart())
 async def start_cmd(message: Message, state: FSMContext) -> None:
-    # If user already has a city, show main menu
-    if message.from_user and message.from_user.id in USER_CITY:
+    if message.from_user and await has_user_city(message.from_user.id):
         await message.answer("Выберите действие:", reply_markup=main_menu_kb())
         return
     await state.set_state(StartStates.choosing_city)
@@ -30,7 +29,7 @@ async def start_cmd(message: Message, state: FSMContext) -> None:
 async def choose_city(message: Message, state: FSMContext) -> None:
     city = (message.text or "").strip()
     if message.from_user:
-        USER_CITY[message.from_user.id] = city
+        await set_user_city(message.from_user.id, city)
     await state.update_data(city=city)
     await state.clear()
     await message.answer(f"Отлично! Город установлен: {city}.", reply_markup=main_menu_kb())

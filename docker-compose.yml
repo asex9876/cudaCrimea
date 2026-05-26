@@ -18,7 +18,7 @@ services:
     environment:
       POSTGRES_DB: cudacrimea
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: plUUI1PLTktZ9uW2WE23b+ixNwJjJGwBDJPQEQFBE+vfmH0JP503wr5INS1poWg
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     networks:
       - infra_appnet
     ports:
@@ -62,7 +62,7 @@ services:
     container_name: cuda_api
     environment:
       - PYTHONPATH=/app
-      - DATABASE_URL=postgresql+asyncpg://postgres:plUUI1PLTktZ9uW2WE23b+ixNwJjJGwBDJPQEQFBE+vfmH0JP503wr5INS1poWg@db:5432/cudacrimea
+      - DATABASE_URL=postgresql+asyncpg://postgres:${DB_PASSWORD}@db:5432/cudacrimea
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       db:
@@ -97,7 +97,7 @@ services:
     container_name: cuda_worker
     environment:
       - PYTHONPATH=/app
-      - DATABASE_URL=postgresql+asyncpg://postgres:plUUI1PLTktZ9uW2WE23b+ixNwJjJGwBDJPQEQFBE+vfmH0JP503wr5INS1poWg@db:5432/cudacrimea
+      - DATABASE_URL=postgresql+asyncpg://postgres:${DB_PASSWORD}@db:5432/cudacrimea
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       db:
@@ -124,10 +124,11 @@ services:
     container_name: cuda_bot
     environment:
       - PYTHONPATH=/app
-      - DATABASE_URL=postgresql+asyncpg://postgres:plUUI1PLTktZ9uW2WE23b+ixNwJjJGwBDJPQEQFBE+vfmH0JP503wr5INS1poWg@db:5432/cudacrimea
+      - DATABASE_URL=postgresql+asyncpg://postgres:${DB_PASSWORD}@db:5432/cudacrimea
       - REDIS_URL=redis://redis:6379/0
       - API_HOST=api
       - API_PORT=8000
+      - BOT_TOKEN=${BOT_TOKEN}
     depends_on:
       api:
         condition: service_healthy

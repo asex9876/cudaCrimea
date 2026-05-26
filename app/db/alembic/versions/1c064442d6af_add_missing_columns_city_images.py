@@ -29,16 +29,9 @@ def upgrade() -> None:
     # Remove server_default after adding (we only needed it for existing rows)
     op.alter_column('events', 'city', server_default=None)
 
-    # Add city column to venues table
-    op.add_column('venues', sa.Column('city', sa.String(), nullable=True))
-
-    # Add images column to ugc_submissions table
-    op.add_column('ugc_submissions', sa.Column('images', sa.String(), nullable=True))
 
 
 def downgrade() -> None:
     # Remove columns in reverse order
-    op.drop_column('ugc_submissions', 'images')
-    op.drop_column('venues', 'city')
     op.drop_column('events', 'images')
     op.drop_column('events', 'city')

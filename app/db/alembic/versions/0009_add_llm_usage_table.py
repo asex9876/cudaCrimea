@@ -31,7 +31,7 @@ def upgrade() -> None:
         sa.Column('completion_tokens', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('total_tokens', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('cost_rub', sa.Float(), nullable=True),
-        sa.Column('metadata', JSONB, nullable=False, server_default="'{}'::jsonb"),
+        sa.Column('metadata', JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
         sa.PrimaryKeyConstraint('id')
     )
