@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.core import runtime_config as rc
 from app.db.models import UGCSubmission
 from app.db.session import get_sessionmaker
 
@@ -279,28 +280,66 @@ async def process_and_save_posts(
             if embedding_vector:
                 extracted_data["embedding"] = embedding_vector
 
-            # Создаем UGC submission
-            ugc_submission = UGCSubmission(
-                id=uuid.uuid4(),
-                user_id=0,  # Системный пользователь для парсеров
-                raw_text=post.get("text", ""),
-                source_url=post.get("post_url"),
-                extracted_data=extracted_data,
-                is_ai_structured=True,
-                parser_source="telegram",
-                status="parsed",  # Готово к модерации
-            )
-
-            session.add(ugc_submission)
-            saved_count += 1
-
-            # Заменяем {} в title чтобы избежать ошибок форматирования
             safe_title = (validated_data.get("title") or "").replace("{", "[").replace("}", "]")
-            logger.info(
-                "tg.event_saved",
-                channel=post.get("channel"),
-                title=safe_title,
-            )
+
+            auto_approve = bool(rc.get("auto_approve_parsers", False))
+
+            if auto_approve:
+                from app.db.dao.events import upsert_event
+                from datetime import date as _date, time as _time
+                try:
+                    date_val = validated_data.get("date")
+                    if isinstance(date_val, str) and date_val:
+                        date_val = _date.fromisoformat(date_val)
+                    elif not isinstance(date_val, _date):
+                        from datetime import datetime, timedelta
+                        date_val = (datetime.now() + timedelta(days=1)).date()
+
+                    time_val = validated_data.get("time")
+                    if isinstance(time_val, str) and time_val:
+                        try:
+                            time_val = _time.fromisoformat(time_val)
+                        except ValueError:
+                            time_val = None
+                    elif not isinstance(time_val, _time):
+                        time_val = None
+
+                    await upsert_event(
+                        session,
+                        title=validated_data.get("title", ""),
+                        date_=date_val,
+                        time_=time_val,
+                        city=validated_data.get("city", city),
+                        venue_name=validated_data.get("venue_name") or "",
+                        address=validated_data.get("address"),
+                        lat=lat,
+                        lon=lon,
+                        price_min=validated_data.get("price_min"),
+                        price_max=validated_data.get("price_max"),
+                        category=validated_data.get("category") or "other",
+                        source="telegram",
+                        source_url=post.get("post_url") or "",
+                    )
+                    saved_count += 1
+                    logger.info("tg.event_auto_approved", channel=post.get("channel"), title=safe_title)
+                except Exception as e:
+                    logger.error("tg.auto_approve_failed", channel=post.get("channel"), error=str(e))
+                    continue
+            else:
+                # Создаем UGC submission для ручной модерации
+                ugc_submission = UGCSubmission(
+                    id=uuid.uuid4(),
+                    user_id=0,
+                    raw_text=post.get("text", ""),
+                    source_url=post.get("post_url"),
+                    extracted_data=extracted_data,
+                    is_ai_structured=True,
+                    parser_source="telegram",
+                    status="parsed",
+                )
+                session.add(ugc_submission)
+                saved_count += 1
+                logger.info("tg.event_queued", channel=post.get("channel"), title=safe_title)
 
         except Exception as e:
             logger.error(

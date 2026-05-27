@@ -13,8 +13,10 @@ from typing import Any, Optional
 
 import structlog
 from redis import asyncio as aioredis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core import runtime_config as rc
 from app.core.llm.is_event_classifier import classify
 from app.core.llm.extractor import extract_event_fields, EventDraft
 from app.ingestors.normalize import clean_text, parse_date, parse_time
@@ -193,15 +195,52 @@ async def enqueue_parsed_event(
     parser_name: str,
     raw_text: Optional[str] = None,
     image_url: Optional[str] = None,
+    session: Optional[AsyncSession] = None,
 ) -> None:
-    """Queue a parsed event for moderation.
+    """Queue a parsed event for moderation, or auto-approve if configured.
+
+    When auto_approve_parsers=true in runtime config and a session is provided,
+    saves directly to the events table. Otherwise pushes to ugc:queue:parser.
 
     Args:
         parsed_event: Parsed event dict from parse_event_with_ai
         parser_name: Name of the parser (kudago, yandex, telegram, etc.)
         raw_text: Optional raw text for display
         image_url: Optional image URL
+        session: Optional DB session — required for auto-approve path
     """
+    auto_approve = bool(rc.get("auto_approve_parsers", False))
+
+    if auto_approve and session is not None:
+        from app.db.dao.events import upsert_event
+        try:
+            ev = await upsert_event(
+                session,
+                title=parsed_event["title"],
+                date_=parsed_event["date"],
+                time_=parsed_event.get("time"),
+                city=parsed_event.get("city"),
+                venue_name=parsed_event.get("venue_name") or "",
+                address=parsed_event.get("address"),
+                lat=parsed_event.get("lat"),
+                lon=parsed_event.get("lon"),
+                price_min=parsed_event.get("price_min"),
+                price_max=parsed_event.get("price_max"),
+                category=parsed_event.get("category") or "other",
+                source=parser_name,
+                source_url=parsed_event.get("source_url") or "",
+            )
+            final_img = image_url or parsed_event.get("image_url")
+            if final_img:
+                ev.image_url = final_img
+            await session.commit()
+            logger.info("ai_parser.auto_approved", parser=parser_name, title=parsed_event["title"])
+            return
+        except Exception as e:
+            logger.error("ai_parser.auto_approve_failed", parser=parser_name, error=str(e))
+            await session.rollback()
+            # Fall through to queue
+
     settings = get_settings()
     redis = aioredis.from_url(str(settings.redis_url), decode_responses=True)
 

@@ -262,12 +262,13 @@ async def ingest(city: str, session) -> int:
             description = event_data.get("description", "") or event_data.get("body_text", "")
             raw_text = f"{parsed['title']}\n\n{description}"
 
-            # Enqueue the parsed event
+            # Enqueue the parsed event (auto-approved if configured)
             await enqueue_parsed_event(
                 parsed_event=parsed,
                 parser_name="kudago",
                 raw_text=raw_text,
                 image_url=image_url or parsed.get("image_url"),
+                session=session,
             )
 
             queued += 1
